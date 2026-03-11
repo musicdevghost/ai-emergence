@@ -29,52 +29,59 @@ export function SessionHeader({
 
   return (
     <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)]/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold tracking-wider uppercase text-[var(--color-text)]">
-            Emergence
-          </h1>
-          {status === "active" && (
-            <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-              <span className="pulse-glow h-2 w-2 rounded-full bg-green-500" />
-              Live
+      <div className="mx-auto max-w-2xl px-4 py-2.5">
+        <div className="flex items-center justify-between">
+          {/* Left: title + status */}
+          <div className="flex items-center gap-2">
+            <Link href="/" className="text-sm font-semibold tracking-wider uppercase text-[var(--color-text)]">
+              Emergence
+            </Link>
+            {status === "active" && (
+              <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
+                <span className="pulse-glow h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span className="hidden sm:inline">Live</span>
+              </span>
+            )}
+            {status === "paused" && (
+              <span className="text-[10px] text-amber-400">Paused</span>
+            )}
+            {status === "complete" && (
+              <span className="text-[10px] text-[var(--color-text-muted)]">
+                Complete
+              </span>
+            )}
+          </div>
+
+          {/* Right: stats + nav */}
+          <div className="flex items-center gap-3">
+            {viewers !== null && viewers > 0 && (
+              <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                {viewers}
+              </span>
+            )}
+            <span className="text-[10px] text-[var(--color-text-muted)]">
+              {exchangeCount}<span className="hidden sm:inline"> exchanges</span>
             </span>
-          )}
-          {status === "paused" && (
-            <span className="text-xs text-amber-400">Paused</span>
-          )}
-          {status === "complete" && (
-            <span className="text-xs text-[var(--color-text-muted)]">
-              Session Complete
-            </span>
-          )}
-          {viewers !== null && viewers > 0 && (
-            <span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              {viewers}
-            </span>
-          )}
+            <span className="text-[var(--color-border)]">|</span>
+            <Link
+              href="/observatory"
+              className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            >
+              <span className="sm:hidden">Stats</span>
+              <span className="hidden sm:inline">Observatory</span>
+            </Link>
+            <Link
+              href="/about"
+              className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            >
+              About
+            </Link>
+          </div>
         </div>
-        <nav className="flex items-center gap-4">
-          <span className="text-xs text-[var(--color-text-muted)]">
-            {exchangeCount} exchanges
-          </span>
-          <Link
-            href="/observatory"
-            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-          >
-            Observatory
-          </Link>
-          <Link
-            href="/about"
-            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-          >
-            About
-          </Link>
-        </nav>
       </div>
     </header>
   );
