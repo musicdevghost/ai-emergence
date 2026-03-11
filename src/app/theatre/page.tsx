@@ -22,16 +22,55 @@ interface Session {
   created_at: string;
 }
 
-const POLL_INTERVAL = 3000; // 3 seconds
+const POLL_INTERVAL = 5000;
+// Delay before revealing a new exchange (typing indicator shows during this)
+const REVEAL_DELAY_MIN = 8000;
+const REVEAL_DELAY_MAX = 15000;
+
+function randomDelay() {
+  return REVEAL_DELAY_MIN + Math.random() * (REVEAL_DELAY_MAX - REVEAL_DELAY_MIN);
+}
 
 export default function TheatrePage() {
   const [session, setSession] = useState<Session | null>(null);
-  const [exchanges, setExchanges] = useState<Exchange[]>([]);
+  // Visible exchanges (what the user sees)
+  const [visibleExchanges, setVisibleExchanges] = useState<Exchange[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showTyping, setShowTyping] = useState(false);
   const [newExchangeIds, setNewExchangeIds] = useState<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
   const initialLoadDone = useRef(false);
+  // Queue of exchanges waiting to be revealed
+  const pendingQueue = useRef<Exchange[]>([]);
+  const isRevealing = useRef(false);
+  const revealTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Reveal queued exchanges one at a time with delays
+  const revealNext = useCallback(() => {
+    if (pendingQueue.current.length === 0) {
+      isRevealing.current = false;
+      // Show typing if session is still active
+      setTimeout(() => setShowTyping(true), 2000);
+      return;
+    }
+
+    isRevealing.current = true;
+    setShowTyping(true);
+
+    const delay = randomDelay();
+    revealTimer.current = setTimeout(() => {
+      const next = pendingQueue.current.shift()!;
+      setShowTyping(false);
+      setNewExchangeIds(new Set([next.id]));
+      setVisibleExchanges((prev) => [...prev, next]);
+
+      // Clear "new" animation after it plays
+      setTimeout(() => setNewExchangeIds(new Set()), 1000);
+
+      // Continue revealing
+      revealNext();
+    }, delay);
+  }, []);
 
   // Fetch initial session data
   useEffect(() => {
@@ -41,7 +80,8 @@ export default function TheatrePage() {
         const data = await res.json();
         if (data.session) {
           setSession(data.session);
-          setExchanges(data.exchanges);
+          // On initial load, show all existing exchanges immediately (no delay for history)
+          setVisibleExchanges(data.exchanges);
         }
       } catch (err) {
         console.error("Failed to fetch session:", err);
@@ -51,6 +91,10 @@ export default function TheatrePage() {
       }
     }
     fetchSession();
+
+    return () => {
+      if (revealTimer.current) clearTimeout(revealTimer.current);
+    };
   }, []);
 
   // Poll for new exchanges
@@ -58,27 +102,35 @@ export default function TheatrePage() {
     if (!session || session.status === "complete") return;
 
     try {
-      const lastExchange = exchanges.length > 0 ? exchanges[exchanges.length - 1].exchange_number : -1;
+      // Use the highest exchange number we know about (visible + pending)
+      const allKnown = [
+        ...visibleExchanges,
+        ...pendingQueue.current,
+      ];
+      const lastKnown =
+        allKnown.length > 0
+          ? Math.max(...allKnown.map((e) => e.exchange_number))
+          : -1;
+
       const res = await fetch(
-        `/api/exchanges?session_id=${session.id}&after=${lastExchange}`
+        `/api/exchanges?session_id=${session.id}&after=${lastKnown}`
       );
       const data = await res.json();
 
       if (data.exchanges.length > 0) {
-        setNewExchangeIds(
-          new Set(data.exchanges.map((e: Exchange) => e.id))
-        );
-        setExchanges((prev) => [...prev, ...data.exchanges]);
-        setShowTyping(false);
+        // Add to pending queue
+        pendingQueue.current.push(...data.exchanges);
 
-        // Show typing indicator after a delay for the next agent
-        setTimeout(() => {
-          if (data.sessionStatus === "active") {
-            setShowTyping(true);
-          }
-        }, 2000);
-      } else if (data.sessionStatus === "active" && exchanges.length > 0) {
-        // No new exchanges but session is active — show typing
+        // Start revealing if not already
+        if (!isRevealing.current) {
+          revealNext();
+        }
+      } else if (
+        data.sessionStatus === "active" &&
+        visibleExchanges.length > 0 &&
+        pendingQueue.current.length === 0 &&
+        !isRevealing.current
+      ) {
         setShowTyping(true);
       }
 
@@ -87,11 +139,14 @@ export default function TheatrePage() {
         setSession((prev) =>
           prev ? { ...prev, status: data.sessionStatus } : null
         );
+        if (data.sessionStatus === "complete") {
+          setShowTyping(false);
+        }
       }
     } catch (err) {
       console.error("Poll error:", err);
     }
-  }, [session, exchanges]);
+  }, [session, visibleExchanges, revealNext]);
 
   useEffect(() => {
     if (!session || session.status === "complete") return;
@@ -99,23 +154,15 @@ export default function TheatrePage() {
     return () => clearInterval(interval);
   }, [poll, session]);
 
-  // Auto-scroll to bottom on new exchanges
+  // Auto-scroll to bottom on new exchanges or typing
   useEffect(() => {
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [exchanges.length, showTyping]);
-
-  // Clear "new" animation after it plays
-  useEffect(() => {
-    if (newExchangeIds.size > 0) {
-      const timer = setTimeout(() => setNewExchangeIds(new Set()), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [newExchangeIds]);
+  }, [visibleExchanges.length, showTyping]);
 
   const nextAgent: AgentRole =
-    TURN_ORDER[exchanges.length % TURN_ORDER.length];
+    TURN_ORDER[visibleExchanges.length % TURN_ORDER.length];
 
   if (isLoading) {
     return (
@@ -146,7 +193,7 @@ export default function TheatrePage() {
     <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
       <SessionHeader
         status={session.status}
-        exchangeCount={exchanges.length}
+        exchangeCount={visibleExchanges.length}
       />
 
       {/* Seed thread banner */}
@@ -161,7 +208,7 @@ export default function TheatrePage() {
       {/* Exchange list */}
       <main className="mx-auto w-full max-w-2xl flex-1 py-4">
         <div className="space-y-1">
-          {exchanges.map((exchange) => (
+          {visibleExchanges.map((exchange) => (
             <ExchangeBubble
               key={exchange.id}
               agent={exchange.agent as AgentRole}
