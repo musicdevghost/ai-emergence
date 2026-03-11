@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 interface SessionHeaderProps {
   status: string;
   exchangeCount: number;
@@ -32,9 +34,23 @@ export function SessionHeader({
             </span>
           )}
         </div>
-        <span className="text-xs text-[var(--color-text-muted)]">
-          {exchangeCount} exchanges
-        </span>
+        <nav className="flex items-center gap-4">
+          <span className="text-xs text-[var(--color-text-muted)]">
+            {exchangeCount} exchanges
+          </span>
+          <Link
+            href="/observatory"
+            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+          >
+            Observatory
+          </Link>
+          <Link
+            href="/about"
+            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+          >
+            About
+          </Link>
+        </nav>
       </div>
     </header>
   );
