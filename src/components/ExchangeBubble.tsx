@@ -10,6 +10,62 @@ interface ExchangeBubbleProps {
   isNew?: boolean;
 }
 
+/** Render basic markdown: **bold** and *italic* */
+function renderContent(text: string) {
+  // Split into segments by **bold** and *italic* markers
+  const parts: { text: string; bold?: boolean; italic?: boolean }[] = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    // Check for **bold**
+    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+    // Check for *italic* (but not **)
+    const italicMatch = remaining.match(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/);
+
+    const boldIndex = boldMatch?.index ?? Infinity;
+    const italicIndex = italicMatch?.index ?? Infinity;
+
+    if (boldIndex === Infinity && italicIndex === Infinity) {
+      parts.push({ text: remaining });
+      break;
+    }
+
+    if (boldIndex <= italicIndex && boldMatch) {
+      // Add text before bold
+      if (boldIndex > 0) {
+        parts.push({ text: remaining.slice(0, boldIndex) });
+      }
+      parts.push({ text: boldMatch[1], bold: true });
+      remaining = remaining.slice(boldIndex + boldMatch[0].length);
+    } else if (italicMatch) {
+      // Add text before italic
+      if (italicIndex > 0) {
+        parts.push({ text: remaining.slice(0, italicIndex) });
+      }
+      parts.push({ text: italicMatch[1], italic: true });
+      remaining = remaining.slice(italicIndex + italicMatch[0].length);
+    }
+  }
+
+  return parts.map((part, i) => {
+    if (part.bold) {
+      return (
+        <strong key={i} className="font-semibold">
+          {part.text}
+        </strong>
+      );
+    }
+    if (part.italic) {
+      return (
+        <em key={i} className="italic text-[var(--color-text-muted)]">
+          {part.text}
+        </em>
+      );
+    }
+    return <span key={i}>{part.text}</span>;
+  });
+}
+
 export function ExchangeBubble({
   agent,
   content,
@@ -35,7 +91,7 @@ export function ExchangeBubble({
       </div>
       <div className="rounded-2xl rounded-tl-sm bg-[var(--color-surface)] border border-[var(--color-border)] px-4 py-3 max-w-[85%]">
         <p className="text-sm leading-relaxed text-[var(--color-text)]">
-          {content}
+          {renderContent(content)}
         </p>
       </div>
     </div>
