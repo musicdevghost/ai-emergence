@@ -37,9 +37,12 @@ async function migrate() {
       extracted_thread TEXT,
       config_version INTEGER REFERENCES config_versions(id),
       is_baseline BOOLEAN DEFAULT FALSE,
-      exchange_count INTEGER DEFAULT 0
+      exchange_count INTEGER DEFAULT 0,
+      next_session_at TIMESTAMP
     )
   `;
+  // Add next_session_at if missing (for existing tables)
+  await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS next_session_at TIMESTAMP`;
   console.log("  ✓ sessions");
 
   // Exchanges

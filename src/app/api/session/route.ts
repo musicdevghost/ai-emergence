@@ -30,5 +30,21 @@ export async function GET() {
     ORDER BY exchange_number ASC
   `;
 
-  return NextResponse.json({ session, exchanges });
+  // If session is complete, include next_session_at for countdown timer
+  let nextSessionAt = session.next_session_at || null;
+  if (session.status === "complete" && !nextSessionAt) {
+    // Legacy session without stored time — check if a newer session exists
+    const newer = await sql`
+      SELECT created_at FROM sessions
+      WHERE created_at > ${session.completed_at}
+      ORDER BY created_at ASC LIMIT 1
+    `;
+    if (newer.length === 0) {
+      // No next session yet, estimate from completed_at + 3.5h
+      const est = new Date(new Date(session.completed_at).getTime() + 3.5 * 60 * 60 * 1000);
+      nextSessionAt = est.toISOString();
+    }
+  }
+
+  return NextResponse.json({ session: { ...session, next_session_at: nextSessionAt }, exchanges });
 }

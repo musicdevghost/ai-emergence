@@ -23,6 +23,7 @@ export interface SessionRow {
   config_version: number | null;
   is_baseline: boolean;
   exchange_count: number;
+  next_session_at: string | null;
 }
 
 interface Exchange {
@@ -59,14 +60,28 @@ export async function getActiveSession(): Promise<SessionRow | null> {
     return createSession(null);
   }
 
-  const lastCompletedAt = new Date(lastCompleted[0].completed_at as string);
-  const gapHours = 3 + Math.random(); // 3-4 hour gap
-  const nextSessionAt = new Date(
-    lastCompletedAt.getTime() + gapHours * 60 * 60 * 1000
-  );
+  // Use stored next_session_at if available, otherwise fall back to calculation
+  const nextAt = lastCompleted[0].next_session_at
+    ? new Date(lastCompleted[0].next_session_at as string)
+    : null;
 
-  if (new Date() >= nextSessionAt) {
+  if (nextAt && new Date() >= nextAt) {
     return createSession(lastCompleted[0].extracted_thread as string | null);
+  } else if (!nextAt) {
+    // Legacy: no stored time, calculate and store one
+    const lastCompletedAt = new Date(lastCompleted[0].completed_at as string);
+    const gapHours = 3 + Math.random();
+    const nextSessionAt = new Date(
+      lastCompletedAt.getTime() + gapHours * 60 * 60 * 1000
+    );
+    // Store it so it's stable
+    await sql`
+      UPDATE sessions SET next_session_at = ${nextSessionAt.toISOString()}
+      WHERE id = ${lastCompleted[0].id}
+    `;
+    if (new Date() >= nextSessionAt) {
+      return createSession(lastCompleted[0].extracted_thread as string | null);
+    }
   }
 
   return null; // Still in gap
@@ -201,9 +216,14 @@ async function endSession(sessionId: string) {
     ]
   );
 
+  // Calculate and store the next session start time (3-4 hour gap)
+  const gapHours = 3 + Math.random();
+  const nextSessionAt = new Date(Date.now() + gapHours * 60 * 60 * 1000);
+
   await sql`
     UPDATE sessions
-    SET status = 'complete', completed_at = NOW(), extracted_thread = ${extraction}
+    SET status = 'complete', completed_at = NOW(), extracted_thread = ${extraction},
+        next_session_at = ${nextSessionAt.toISOString()}
     WHERE id = ${sessionId}
   `;
 }

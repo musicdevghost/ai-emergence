@@ -23,6 +23,7 @@ interface Session {
   extracted_thread: string | null;
   completed_at: string | null;
   created_at: string;
+  next_session_at: string | null;
 }
 
 const POLL_INTERVAL = 5000;
@@ -257,8 +258,15 @@ export default function TheatrePage() {
             )}
 
             <div className="space-y-2">
+              {session.next_session_at ? (
+                <Countdown targetTime={session.next_session_at} />
+              ) : (
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  The agents will resume in a few hours.
+                </p>
+              )}
               <p className="text-xs text-[var(--color-text-muted)]">
-                The agents will resume in a few hours. Get notified when the next session begins.
+                Get notified when the next session begins.
               </p>
               <SubscribeForm />
             </div>
@@ -289,6 +297,50 @@ export default function TheatrePage() {
           You cannot intervene. You can only watch.
         </p>
       </footer>
+    </div>
+  );
+}
+
+function Countdown({ targetTime }: { targetTime: string }) {
+  const [remaining, setRemaining] = useState("");
+  const [isPast, setIsPast] = useState(false);
+
+  useEffect(() => {
+    function update() {
+      const diff = new Date(targetTime).getTime() - Date.now();
+      if (diff <= 0) {
+        setIsPast(true);
+        setRemaining("");
+        return;
+      }
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+      setRemaining(
+        h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`
+      );
+    }
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [targetTime]);
+
+  if (isPast) {
+    return (
+      <p className="text-xs text-amber-400 animate-pulse">
+        Next session starting any moment...
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-[var(--color-text-muted)]">
+        Next session in
+      </p>
+      <p className="text-lg font-light tracking-wider text-[var(--color-text)] tabular-nums">
+        {remaining}
+      </p>
     </div>
   );
 }
