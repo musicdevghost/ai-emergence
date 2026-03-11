@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { ExchangeBubble } from "@/components/ExchangeBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { SessionHeader } from "@/components/SessionHeader";
+import { SubscribeForm } from "@/components/SubscribeForm";
 import { TURN_ORDER, type AgentRole } from "@/lib/agents";
 
 interface Exchange {
@@ -19,6 +20,8 @@ interface Session {
   status: string;
   exchange_count: number;
   seed_thread: string | null;
+  extracted_thread: string | null;
+  completed_at: string | null;
   created_at: string;
 }
 
@@ -136,11 +139,18 @@ export default function TheatrePage() {
 
       // Update session status
       if (data.sessionStatus && session.status !== data.sessionStatus) {
-        setSession((prev) =>
-          prev ? { ...prev, status: data.sessionStatus } : null
-        );
         if (data.sessionStatus === "complete") {
           setShowTyping(false);
+          // Re-fetch full session to get extracted_thread
+          const sessionRes = await fetch("/api/session");
+          const sessionData = await sessionRes.json();
+          if (sessionData.session) {
+            setSession(sessionData.session);
+          }
+        } else {
+          setSession((prev) =>
+            prev ? { ...prev, status: data.sessionStatus } : null
+          );
         }
       }
     } catch (err) {
@@ -223,6 +233,51 @@ export default function TheatrePage() {
         {/* Typing indicator */}
         {showTyping && session.status === "active" && (
           <TypingIndicator agent={nextAgent} />
+        )}
+
+        {/* Session complete */}
+        {session.status === "complete" && (
+          <div className="mx-4 mt-8 mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-5">
+            <div className="text-center space-y-2">
+              <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
+                Session Complete
+              </p>
+              <div className="mx-auto h-px w-12 bg-[var(--color-border)]" />
+            </div>
+
+            {session.extracted_thread && (
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                  Thread extracted for next session
+                </p>
+                <p className="text-sm italic leading-relaxed text-[var(--color-text)]">
+                  &ldquo;{session.extracted_thread}&rdquo;
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <p className="text-xs text-[var(--color-text-muted)]">
+                The agents will resume in a few hours. Get notified when the next session begins.
+              </p>
+              <SubscribeForm />
+            </div>
+
+            <div className="flex justify-center gap-4 pt-2">
+              <a
+                href="/observatory"
+                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+              >
+                View Observatory
+              </a>
+              <a
+                href="/about"
+                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+              >
+                About the Research
+              </a>
+            </div>
+          </div>
         )}
 
         <div ref={bottomRef} />
