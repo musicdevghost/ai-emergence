@@ -210,7 +210,7 @@ async function callWithRetry(
     try {
       const response = await anthropic.messages.create({
         model,
-        max_tokens: 300,
+        max_tokens: 512,
         system: systemPrompt,
         messages,
       });
