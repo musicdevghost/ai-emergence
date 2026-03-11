@@ -80,10 +80,34 @@ async function migrate() {
   `;
   console.log("  ✓ annotations");
 
+  // Page views
+  await sql`
+    CREATE TABLE IF NOT EXISTS page_views (
+      id SERIAL PRIMARY KEY,
+      path VARCHAR(255) NOT NULL,
+      viewer_id VARCHAR(64),
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  console.log("  ✓ page_views");
+
+  // Active viewers (heartbeat-based)
+  await sql`
+    CREATE TABLE IF NOT EXISTS active_viewers (
+      viewer_id VARCHAR(64) PRIMARY KEY,
+      path VARCHAR(255) NOT NULL,
+      last_seen TIMESTAMP DEFAULT NOW()
+    )
+  `;
+  console.log("  ✓ active_viewers");
+
   // Indexes for performance
   await sql`CREATE INDEX IF NOT EXISTS idx_exchanges_session ON exchanges(session_id, exchange_number)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_sessions_created ON sessions(created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_page_views_created ON page_views(created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views(path)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_active_viewers_last_seen ON active_viewers(last_seen)`;
   console.log("  ✓ indexes");
 
   console.log("Migration complete.");
