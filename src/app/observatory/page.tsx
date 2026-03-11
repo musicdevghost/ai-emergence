@@ -20,14 +20,29 @@ interface Stats {
   activeSession: { id: string; exchange_count: number; status: string } | null;
 }
 
+interface AnalyticsStats {
+  totalViews: number;
+  todayViews: number;
+  uniqueVisitors: number;
+  liveViewers: number;
+  viewsByPage: { path: string; count: number }[];
+  dailyViews: { date: string; count: number }[];
+}
+
 export default function ObservatoryPage() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/stats")
-      .then((r) => r.json())
-      .then(setStats)
+    Promise.all([
+      fetch("/api/stats").then((r) => r.json()),
+      fetch("/api/analytics/stats").then((r) => r.json()),
+    ])
+      .then(([s, a]) => {
+        setStats(s);
+        setAnalytics(a);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -75,7 +90,30 @@ export default function ObservatoryPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-8 space-y-8">
-        {/* Metric cards */}
+        {/* Audience metrics */}
+        {analytics && (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <MetricCard
+              label="Watching Now"
+              value={analytics.liveViewers}
+              isLive={analytics.liveViewers > 0}
+            />
+            <MetricCard
+              label="Views Today"
+              value={analytics.todayViews}
+            />
+            <MetricCard
+              label="Total Views"
+              value={analytics.totalViews}
+            />
+            <MetricCard
+              label="Unique Visitors"
+              value={analytics.uniqueVisitors}
+            />
+          </div>
+        )}
+
+        {/* Session metrics */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <MetricCard
             label="Sessions"
