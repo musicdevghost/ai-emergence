@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getDb } from "./db";
+import { notifyNewSession } from "./email";
 import {
   AGENTS,
   CONTEXT_WINDOW_SIZE,
@@ -79,6 +80,12 @@ async function createSession(seedThread: string | null): Promise<SessionRow> {
     VALUES (${seedThread}, 'active')
     RETURNING *
   `;
+
+  // Notify subscribers (fire-and-forget, don't block session creation)
+  notifyNewSession(seedThread).catch((err) =>
+    console.error("Email notification failed:", err)
+  );
+
   return sessions[0] as unknown as SessionRow;
 }
 
