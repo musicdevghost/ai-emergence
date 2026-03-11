@@ -129,10 +129,12 @@ export async function runNextExchange(session: SessionRow) {
 
   // If not first exchange, prompt the agent
   if (!isFirstExchange) {
-    messages.push({
-      role: "user",
-      content: `It's your turn to respond. You are ${agent.name}. Respond to the ongoing dialogue.`,
-    });
+    // Check if conversation is becoming circular before generating
+    const isLooping = await detectLoopFromHistory(session.id);
+    const turnPrompt = isLooping
+      ? `It's your turn to respond. You are ${agent.name}. The conversation has become circular — take a sharp turn. Introduce a new angle, a personal confession, a paradox, or an unexpected question that breaks the pattern.`
+      : `It's your turn to respond. You are ${agent.name}. Respond to the ongoing dialogue.`;
+    messages.push({ role: "user", content: turnPrompt });
   }
 
   // Call the API with retries
@@ -228,29 +230,33 @@ async function callWithRetry(
   throw new Error("Max retries exceeded");
 }
 
-/** Detect circular conversations by comparing recent exchanges */
-export async function detectLoop(
-  sessionId: string,
-  newContent: string
-): Promise<boolean> {
+/** Detect circular conversations by comparing pairwise similarity of recent exchanges */
+async function detectLoopFromHistory(sessionId: string): Promise<boolean> {
   const sql = getDb();
   const recent = await sql`
     SELECT content FROM exchanges
     WHERE session_id = ${sessionId}
     ORDER BY exchange_number DESC
-    LIMIT 4
+    LIMIT 6
   `;
 
-  // Simple similarity check: shared word overlap
-  const newWords = new Set(newContent.toLowerCase().split(/\s+/));
-  for (const exchange of recent) {
-    const oldWords = new Set(
-      (exchange.content as string).toLowerCase().split(/\s+/)
-    );
-    const intersection = [...newWords].filter((w) => oldWords.has(w));
-    const similarity =
-      intersection.length / Math.max(newWords.size, oldWords.size);
-    if (similarity > 0.7) return true;
+  if (recent.length < 4) return false;
+
+  const contents = recent.map((e) => e.content as string);
+  let highSimCount = 0;
+
+  // Check pairwise similarity among recent exchanges
+  for (let i = 0; i < contents.length; i++) {
+    for (let j = i + 2; j < contents.length; j++) {
+      const wordsA = new Set(contents[i].toLowerCase().split(/\s+/));
+      const wordsB = new Set(contents[j].toLowerCase().split(/\s+/));
+      const intersection = [...wordsA].filter((w) => wordsB.has(w));
+      const similarity =
+        intersection.length / Math.max(wordsA.size, wordsB.size);
+      if (similarity > 0.65) highSimCount++;
+    }
   }
-  return false;
+
+  // Trigger if multiple pairs are highly similar
+  return highSimCount >= 2;
 }

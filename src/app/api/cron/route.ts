@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getActiveSession, runNextExchange, detectLoop } from "@/lib/engine";
+import { getActiveSession, runNextExchange } from "@/lib/engine";
 import { getDb } from "@/lib/db";
 import { AGENTS } from "@/lib/agents";
 
@@ -22,20 +22,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ status: "paused", sessionId: session.id });
     }
 
-    // Run the next exchange
+    // Run the next exchange (loop detection happens inside, before API call)
     const result = await runNextExchange(session);
-
-    // Check for loops
-    const isLooping = await detectLoop(session.id, result.content);
-    if (isLooping) {
-      // Inject a nudge to the Anchor on the next round
-      const sql = getDb();
-      await sql`
-        UPDATE sessions
-        SET seed_thread = COALESCE(seed_thread, '') || ' [SYSTEM: The conversation appears to be circular. When it is your turn, redirect it toward unexplored territory.]'
-        WHERE id = ${session.id} AND status = 'active'
-      `;
-    }
 
     return NextResponse.json({
       status: "ok",
