@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { AGENTS, type AgentRole } from "@/lib/agents";
 
 interface ExchangeBubbleProps {
@@ -10,60 +11,71 @@ interface ExchangeBubbleProps {
   isNew?: boolean;
 }
 
-/** Render basic markdown: **bold** and *italic* */
-export function renderContent(text: string) {
-  // Split into segments by **bold** and *italic* markers
-  const parts: { text: string; bold?: boolean; italic?: boolean }[] = [];
-  let remaining = text;
+/** Render basic markdown: **bold**, *italic*, and nested **bold with *italic* inside** */
+export function renderContent(text: string): React.ReactNode[] {
+  const result: React.ReactNode[] = [];
+  // Match **bold** or *italic* (bold first to avoid conflicts)
+  const regex = /\*\*(.+?)\*\*|\*(.+?)\*/g;
+  let lastIndex = 0;
+  let match;
 
-  while (remaining.length > 0) {
-    // Check for **bold**
-    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
-    // Check for *italic* (but not **)
-    const italicMatch = remaining.match(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/);
-
-    const boldIndex = boldMatch?.index ?? Infinity;
-    const italicIndex = italicMatch?.index ?? Infinity;
-
-    if (boldIndex === Infinity && italicIndex === Infinity) {
-      parts.push({ text: remaining });
-      break;
+  while ((match = regex.exec(text)) !== null) {
+    // Add plain text before this match
+    if (match.index > lastIndex) {
+      result.push(<span key={`t${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>);
     }
 
-    if (boldIndex <= italicIndex && boldMatch) {
-      // Add text before bold
-      if (boldIndex > 0) {
-        parts.push({ text: remaining.slice(0, boldIndex) });
-      }
-      parts.push({ text: boldMatch[1], bold: true });
-      remaining = remaining.slice(boldIndex + boldMatch[0].length);
-    } else if (italicMatch) {
-      // Add text before italic
-      if (italicIndex > 0) {
-        parts.push({ text: remaining.slice(0, italicIndex) });
-      }
-      parts.push({ text: italicMatch[1], italic: true });
-      remaining = remaining.slice(italicIndex + italicMatch[0].length);
-    }
-  }
-
-  return parts.map((part, i) => {
-    if (part.bold) {
-      return (
-        <strong key={i} className="font-semibold">
-          {part.text}
+    if (match[1] !== undefined) {
+      // **bold** — recursively render inner content for nested *italic*
+      result.push(
+        <strong key={`b${match.index}`} className="font-semibold">
+          {renderInlineItalic(match[1], match.index)}
         </strong>
       );
-    }
-    if (part.italic) {
-      return (
-        <em key={i} className="italic text-[var(--color-text-muted)]">
-          {part.text}
+    } else if (match[2] !== undefined) {
+      // *italic*
+      result.push(
+        <em key={`i${match.index}`} className="italic text-[var(--color-text-muted)]">
+          {match[2]}
         </em>
       );
     }
-    return <span key={i}>{part.text}</span>;
-  });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining plain text
+  if (lastIndex < text.length) {
+    result.push(<span key={`t${lastIndex}`}>{text.slice(lastIndex)}</span>);
+  }
+
+  return result;
+}
+
+/** Render *italic* within already-matched bold text */
+function renderInlineItalic(text: string, parentIndex: number): React.ReactNode[] {
+  const result: React.ReactNode[] = [];
+  const regex = /\*(.+?)\*/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      result.push(<span key={`bi${parentIndex}_${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>);
+    }
+    result.push(
+      <em key={`bie${parentIndex}_${match.index}`} className="italic">
+        {match[1]}
+      </em>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    result.push(<span key={`bi${parentIndex}_${lastIndex}`}>{text.slice(lastIndex)}</span>);
+  }
+
+  return result.length > 0 ? result : [<span key={`bi${parentIndex}_0`}>{text}</span>];
 }
 
 export function ExchangeBubble({
