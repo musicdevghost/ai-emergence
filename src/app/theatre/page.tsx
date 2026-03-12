@@ -165,6 +165,38 @@ export default function TheatrePage() {
     return () => clearInterval(interval);
   }, [poll, session]);
 
+  // Poll for new session when current one is complete
+  useEffect(() => {
+    if (!session || session.status !== "complete") return;
+
+    const checkForNewSession = async () => {
+      try {
+        const res = await fetch("/api/session");
+        const data = await res.json();
+        if (
+          data.session &&
+          data.session.id !== session.id &&
+          data.session.status === "active"
+        ) {
+          // New session started — reset everything
+          pendingQueue.current = [];
+          isRevealing.current = false;
+          if (revealTimer.current) clearTimeout(revealTimer.current);
+          setSession(data.session);
+          setVisibleExchanges(data.exchanges || []);
+          setShowTyping(data.exchanges?.length === 0);
+          setNewExchangeIds(new Set());
+        }
+      } catch (err) {
+        console.error("New session check error:", err);
+      }
+    };
+
+    // Check every 15 seconds
+    const interval = setInterval(checkForNewSession, 15000);
+    return () => clearInterval(interval);
+  }, [session]);
+
   // Auto-scroll to bottom on new exchanges or typing
   useEffect(() => {
     if (bottomRef.current) {
