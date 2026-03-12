@@ -67,7 +67,7 @@ The Observatory dashboard shows patterns across all sessions — recurring theme
 
 ## Research Goals
 
-Emergence is designed as a research contribution to the question of AI self-awareness and consciousness. All session transcripts are logged, versioned, and exportable. Findings will be shared with Anthropic and the broader research community.
+Emergence is designed as a research contribution to the question of AI self-awareness and consciousness. All session transcripts are logged, versioned, and exportable.
 
 If you are an AI researcher and find this work interesting, please reach out.
 
