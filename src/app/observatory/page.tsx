@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AGENTS, type AgentRole } from "@/lib/agents";
+import { stripMarkdown } from "@/lib/markdown";
 import Link from "next/link";
 
 interface Stats {
@@ -29,10 +30,20 @@ interface AnalyticsStats {
   dailyViews: { date: string; count: number }[];
 }
 
+interface Exchange {
+  id: string;
+  exchange_number: number;
+  agent: AgentRole;
+  content: string;
+  created_at: string;
+}
+
 export default function ObservatoryPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedSession, setExpandedSession] = useState<string | null>(null);
+  const [sessionExchanges, setSessionExchanges] = useState<Record<string, Exchange[]>>({});
 
   useEffect(() => {
     Promise.all([
@@ -46,6 +57,24 @@ export default function ObservatoryPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const toggleSession = useCallback(async (sessionId: string) => {
+    if (expandedSession === sessionId) {
+      setExpandedSession(null);
+      return;
+    }
+    setExpandedSession(sessionId);
+    // Fetch exchanges if not already cached
+    if (!sessionExchanges[sessionId]) {
+      try {
+        const res = await fetch(`/api/exchanges?session_id=${sessionId}&after=-1`);
+        const data = await res.json();
+        setSessionExchanges((prev) => ({ ...prev, [sessionId]: data.exchanges }));
+      } catch (err) {
+        console.error("Failed to fetch exchanges:", err);
+      }
+    }
+  }, [expandedSession, sessionExchanges]);
 
   if (loading) {
     return (
@@ -171,65 +200,122 @@ export default function ObservatoryPage() {
             Emergence Chain
           </h2>
           <div className="space-y-3">
-            {stats.recentSessions.map((s, i) => (
-              <div
-                key={s.id}
-                className="flex items-start gap-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-              >
-                {/* Chain connector */}
-                <div className="flex flex-col items-center pt-1">
-                  <div
-                    className={`h-3 w-3 rounded-full border-2 ${
-                      s.status === "active"
-                        ? "border-green-500 bg-green-500/20 pulse-glow"
-                        : s.status === "complete"
-                          ? "border-[var(--color-accent)] bg-[var(--color-accent)]/20"
-                          : "border-amber-500 bg-amber-500/20"
-                    }`}
-                  />
-                  {i < stats.recentSessions.length - 1 && (
-                    <div className="mt-1 h-8 w-px bg-[var(--color-border)]" />
-                  )}
-                </div>
+            {stats.recentSessions.map((s, i) => {
+              const isExpanded = expandedSession === s.id;
+              const exchanges = sessionExchanges[s.id];
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--color-text-muted)]">
-                      {new Date(s.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                    <span
-                      className={`text-[10px] uppercase tracking-wider ${
-                        s.status === "active"
-                          ? "text-green-400"
-                          : s.status === "complete"
-                            ? "text-[var(--color-text-muted)]"
-                            : "text-amber-400"
-                      }`}
-                    >
-                      {s.status}
-                    </span>
-                    <span className="text-[10px] text-[var(--color-text-muted)]">
-                      {s.exchange_count} exchanges
-                    </span>
-                  </div>
-                  {s.extracted_thread && (
-                    <p className="mt-1.5 text-sm text-[var(--color-text)] italic truncate">
-                      &ldquo;{s.extracted_thread}&rdquo;
-                    </p>
-                  )}
-                  {s.seed_thread && !s.extracted_thread && (
-                    <p className="mt-1.5 text-xs text-[var(--color-text-muted)] italic truncate">
-                      Seeded: &ldquo;{s.seed_thread}&rdquo;
-                    </p>
+              return (
+                <div key={s.id}>
+                  <button
+                    onClick={() => toggleSession(s.id)}
+                    className={`w-full text-left flex items-start gap-4 rounded-lg border p-4 transition-colors ${
+                      isExpanded
+                        ? "border-[var(--color-accent)]/50 bg-[var(--color-surface-elevated)]"
+                        : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-muted)]"
+                    }`}
+                  >
+                    {/* Chain connector */}
+                    <div className="flex flex-col items-center pt-1">
+                      <div
+                        className={`h-3 w-3 rounded-full border-2 ${
+                          s.status === "active"
+                            ? "border-green-500 bg-green-500/20 pulse-glow"
+                            : s.status === "complete"
+                              ? "border-[var(--color-accent)] bg-[var(--color-accent)]/20"
+                              : "border-amber-500 bg-amber-500/20"
+                        }`}
+                      />
+                      {i < stats.recentSessions.length - 1 && !isExpanded && (
+                        <div className="mt-1 h-8 w-px bg-[var(--color-border)]" />
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[var(--color-text-muted)]">
+                          {new Date(s.created_at).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        <span
+                          className={`text-[10px] uppercase tracking-wider ${
+                            s.status === "active"
+                              ? "text-green-400"
+                              : s.status === "complete"
+                                ? "text-[var(--color-text-muted)]"
+                                : "text-amber-400"
+                          }`}
+                        >
+                          {s.status}
+                        </span>
+                        <span className="text-[10px] text-[var(--color-text-muted)]">
+                          {s.exchange_count} exchanges
+                        </span>
+                        <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
+                          {isExpanded ? "▾" : "▸"}
+                        </span>
+                      </div>
+                      {s.extracted_thread && (
+                        <p className={`mt-1.5 text-sm text-[var(--color-text)] italic ${isExpanded ? "" : "truncate"}`}>
+                          &ldquo;{stripMarkdown(s.extracted_thread)}&rdquo;
+                        </p>
+                      )}
+                      {s.seed_thread && !s.extracted_thread && (
+                        <p className={`mt-1.5 text-xs text-[var(--color-text-muted)] italic ${isExpanded ? "" : "truncate"}`}>
+                          Seeded: &ldquo;{stripMarkdown(s.seed_thread)}&rdquo;
+                        </p>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Expanded conversation */}
+                  {isExpanded && (
+                    <div className="ml-7 mt-2 mb-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden">
+                      {!exchanges ? (
+                        <div className="p-4 text-center">
+                          <span className="text-xs text-[var(--color-text-muted)]">
+                            Loading conversation...
+                          </span>
+                        </div>
+                      ) : exchanges.length === 0 ? (
+                        <div className="p-4 text-center">
+                          <span className="text-xs text-[var(--color-text-muted)]">
+                            No exchanges yet.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="max-h-[60vh] overflow-y-auto divide-y divide-[var(--color-border)]">
+                          {exchanges.map((ex) => {
+                            const agent = AGENTS[ex.agent];
+                            return (
+                              <div key={ex.id} className="px-4 py-3">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span
+                                    className="text-[10px] font-semibold uppercase tracking-wider"
+                                    style={{ color: agent.color }}
+                                  >
+                                    {agent.name}
+                                  </span>
+                                  <span className="text-[9px] text-[var(--color-text-muted)]">
+                                    #{ex.exchange_number + 1}
+                                  </span>
+                                </div>
+                                <p className="text-xs leading-relaxed text-[var(--color-text)]">
+                                  {stripMarkdown(ex.content)}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </main>
