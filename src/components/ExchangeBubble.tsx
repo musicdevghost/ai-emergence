@@ -11,7 +11,7 @@ interface ExchangeBubbleProps {
 }
 
 /** Render basic markdown: **bold** and *italic* */
-function renderContent(text: string) {
+export function renderContent(text: string) {
   // Split into segments by **bold** and *italic* markers
   const parts: { text: string; bold?: boolean; italic?: boolean }[] = [];
   let remaining = text;

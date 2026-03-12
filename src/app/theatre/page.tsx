@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { ExchangeBubble } from "@/components/ExchangeBubble";
+import { ExchangeBubble, renderContent } from "@/components/ExchangeBubble";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { SessionHeader } from "@/components/SessionHeader";
 import { SubscribeForm } from "@/components/SubscribeForm";
@@ -211,7 +211,7 @@ export default function TheatrePage() {
       {session.seed_thread && (
         <div className="mx-auto max-w-2xl px-4 py-3 border-b border-[var(--color-border)]">
           <p className="text-xs text-[var(--color-text-muted)] italic">
-            Thread from previous session: &ldquo;{session.seed_thread}&rdquo;
+            Thread from previous session: &ldquo;{renderContent(session.seed_thread)}&rdquo;
           </p>
         </div>
       )}
@@ -252,7 +252,7 @@ export default function TheatrePage() {
                   Thread extracted for next session
                 </p>
                 <p className="text-sm italic leading-relaxed text-[var(--color-text)]">
-                  &ldquo;{session.extracted_thread}&rdquo;
+                  &ldquo;{renderContent(session.extracted_thread!)}&rdquo;
                 </p>
               </div>
             )}

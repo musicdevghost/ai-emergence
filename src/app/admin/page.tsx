@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { AGENTS, type AgentRole } from "@/lib/agents";
+import { stripMarkdown } from "@/lib/markdown";
 
 interface Session {
   id: string;
@@ -187,7 +188,7 @@ export default function AdminPage() {
                   </p>
                   {s.extracted_thread && (
                     <p className="mt-1 text-[10px] text-[var(--color-text-muted)] italic truncate">
-                      {s.extracted_thread}
+                      {stripMarkdown(s.extracted_thread)}
                     </p>
                   )}
                 </button>
@@ -269,7 +270,7 @@ export default function AdminPage() {
                           </span>
                         </div>
                         <p className="text-sm text-[var(--color-text)] leading-relaxed">
-                          {e.content}
+                          {stripMarkdown(e.content)}
                         </p>
                         {/* Annotation input */}
                         <div className="mt-3 flex gap-2">
