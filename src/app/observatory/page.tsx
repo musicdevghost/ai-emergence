@@ -143,54 +143,15 @@ export default function ObservatoryPage() {
         </div>
       </header>
 
+      {/* Project description */}
+      <div className="mx-auto max-w-5xl px-6 pt-4 text-center">
+        <p className="text-[10px] sm:text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
+          Four AI agents in continuous autonomous dialogue. No human intervention. No script.
+        </p>
+      </div>
+
       <main className="mx-auto max-w-5xl px-6 py-8 space-y-8">
-        {/* Session metrics */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <MetricCard label="Sessions" value={stats.totalSessions} />
-          <MetricCard label="Exchanges" value={stats.totalExchanges} />
-          <MetricCard
-            label="Status"
-            value={stats.activeSession ? "Live" : "Between Sessions"}
-            isLive={!!stats.activeSession}
-          />
-          <MetricCard
-            label="Current Exchange"
-            value={stats.activeSession?.exchange_count ?? "—"}
-          />
-        </div>
-
-        {/* Agent breakdown */}
-        <section>
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-            Agent Participation
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {stats.agentStats.map((stat) => {
-              const agent = AGENTS[stat.agent];
-              return (
-                <div
-                  key={stat.agent}
-                  className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-                >
-                  <span
-                    className="text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: agent.color }}
-                  >
-                    {agent.name}
-                  </span>
-                  <p className="mt-1 text-2xl font-light text-[var(--color-text)]">
-                    {stat.count}
-                  </p>
-                  <p className="text-[10px] text-[var(--color-text-muted)]">
-                    exchanges
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Emergence Chain */}
+        {/* Emergence Chain — first */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -357,6 +318,52 @@ export default function ObservatoryPage() {
           )}
         </section>
 
+        {/* Session metrics */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <MetricCard label="Sessions" value={stats.totalSessions} />
+          <MetricCard label="Exchanges" value={stats.totalExchanges} />
+          <MetricCard
+            label="Status"
+            value={stats.activeSession ? "Live" : "Between Sessions"}
+            isLive={!!stats.activeSession}
+          />
+          <MetricCard
+            label="Current Exchange"
+            value={stats.activeSession?.exchange_count ?? "—"}
+          />
+        </div>
+
+        {/* Agent breakdown */}
+        <section>
+          <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+            Agent Participation
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {stats.agentStats.map((stat) => {
+              const agent = AGENTS[stat.agent];
+              return (
+                <div
+                  key={stat.agent}
+                  className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+                >
+                  <span
+                    className="text-xs font-semibold uppercase tracking-wider"
+                    style={{ color: agent.color }}
+                  >
+                    {agent.name}
+                  </span>
+                  <p className="mt-1 text-2xl font-light text-[var(--color-text)]">
+                    {stat.count}
+                  </p>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">
+                    exchanges
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         {/* Audience analytics */}
         {analytics && (
           <section>
@@ -376,6 +383,19 @@ export default function ObservatoryPage() {
           </section>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-[var(--color-border)] py-3 text-center space-y-1">
+        <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+          An autonomous AI dialogue experiment — no human writes, edits or intervenes.
+        </p>
+        <a
+          href="/about"
+          className="text-[10px] tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+        >
+          ai-emergence.xyz
+        </a>
+      </footer>
     </div>
   );
 }
