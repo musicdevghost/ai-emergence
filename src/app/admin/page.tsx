@@ -36,11 +36,27 @@ interface Iteration {
   ended_at: string | null;
 }
 
+interface PageViewStat {
+  path: string;
+  count: string;
+}
+
+interface DailyViewStat {
+  date: string;
+  count: string;
+}
+
 interface AnalyticsStats {
   totalViews: number;
   todayViews: number;
+  weekViews: number;
   uniqueVisitors: number;
   liveViewers: number;
+  viewsByPage: PageViewStat[];
+  dailyViews: DailyViewStat[];
+  totalSessions: number;
+  totalExchanges: number;
+  sessionsToday: number;
 }
 
 export default function AdminPage() {
@@ -217,25 +233,90 @@ export default function AdminPage() {
       <main className="mx-auto max-w-6xl px-6 py-6 space-y-6">
         {/* Analytics */}
         {analytics && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Watching Now</p>
-              <p className="mt-1 text-lg font-light text-[var(--color-text)] flex items-center gap-2">
-                {analytics.liveViewers > 0 && <span className="pulse-glow h-2 w-2 rounded-full bg-green-500" />}
-                {analytics.liveViewers}
-              </p>
+          <div className="space-y-4">
+            {/* Row 1: Key metrics */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <MetricCard label="Watching Now" value={analytics.liveViewers} live={analytics.liveViewers > 0} />
+              <MetricCard label="Views Today" value={analytics.todayViews} />
+              <MetricCard label="Views This Week" value={analytics.weekViews} />
+              <MetricCard label="Total Views" value={analytics.totalViews} />
+              <MetricCard label="Unique Visitors" value={analytics.uniqueVisitors} />
+              <MetricCard label="Total Sessions" value={analytics.totalSessions} />
             </div>
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Views Today</p>
-              <p className="mt-1 text-lg font-light text-[var(--color-text)]">{analytics.todayViews}</p>
-            </div>
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Total Views</p>
-              <p className="mt-1 text-lg font-light text-[var(--color-text)]">{analytics.totalViews}</p>
-            </div>
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Unique Visitors</p>
-              <p className="mt-1 text-lg font-light text-[var(--color-text)]">{analytics.uniqueVisitors}</p>
+
+            {/* Row 2: 30-day sparkline */}
+            {analytics.dailyViews.length > 0 && (
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
+                  Views — Last 30 Days
+                </p>
+                <DailyViewsChart data={analytics.dailyViews} />
+              </div>
+            )}
+
+            {/* Row 3: Top pages + experiment stats */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Top Pages */}
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
+                  Top Pages
+                </p>
+                <div className="space-y-2">
+                  {analytics.viewsByPage.map((p) => {
+                    const count = parseInt(p.count);
+                    const maxCount = parseInt(analytics.viewsByPage[0]?.count || "1");
+                    return (
+                      <div key={p.path} className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-[var(--color-text)] truncate">{p.path}</span>
+                            <span className="text-[10px] text-[var(--color-text-muted)] ml-2 shrink-0">{count}</span>
+                          </div>
+                          <div className="h-1 rounded-full bg-[var(--color-bg)]">
+                            <div
+                              className="h-1 rounded-full bg-[var(--color-accent)]"
+                              style={{ width: `${(count / maxCount) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Experiment Stats */}
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
+                  Experiment Stats
+                </p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[var(--color-text-muted)]">Total Exchanges</span>
+                    <span className="text-sm font-light text-[var(--color-text)]">{analytics.totalExchanges.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[var(--color-text-muted)]">Sessions Today</span>
+                    <span className="text-sm font-light text-[var(--color-text)]">{analytics.sessionsToday}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[var(--color-text-muted)]">Avg Exchanges / Session</span>
+                    <span className="text-sm font-light text-[var(--color-text)]">
+                      {analytics.totalSessions > 0
+                        ? (analytics.totalExchanges / analytics.totalSessions).toFixed(1)
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[var(--color-text-muted)]">Avg Views / Day (30d)</span>
+                    <span className="text-sm font-light text-[var(--color-text)]">
+                      {analytics.dailyViews.length > 0
+                        ? (analytics.dailyViews.reduce((sum, d) => sum + parseInt(d.count), 0) / analytics.dailyViews.length).toFixed(1)
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -485,6 +566,49 @@ export default function AdminPage() {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, live }: { label: string; value: number; live?: boolean }) {
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+      <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{label}</p>
+      <p className="mt-1 text-lg font-light text-[var(--color-text)] flex items-center gap-2">
+        {live && <span className="pulse-glow h-2 w-2 rounded-full bg-green-500" />}
+        {value.toLocaleString()}
+      </p>
+    </div>
+  );
+}
+
+function DailyViewsChart({ data }: { data: DailyViewStat[] }) {
+  const maxCount = Math.max(...data.map((d) => parseInt(d.count)), 1);
+
+  return (
+    <div className="flex items-end gap-[2px] h-24">
+      {data.map((d) => {
+        const count = parseInt(d.count);
+        const height = Math.max((count / maxCount) * 100, 2);
+        const dateStr = new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        return (
+          <div
+            key={d.date}
+            className="group relative flex-1 min-w-0"
+            style={{ height: "100%" }}
+          >
+            <div
+              className="absolute bottom-0 w-full rounded-sm bg-[var(--color-accent)]/60 hover:bg-[var(--color-accent)] transition-colors cursor-default"
+              style={{ height: `${height}%` }}
+            />
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-10">
+              <div className="rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-2 py-1 text-[10px] text-[var(--color-text)] whitespace-nowrap shadow-lg">
+                {dateStr}: {count}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
