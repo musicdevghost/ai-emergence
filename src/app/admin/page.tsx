@@ -24,6 +24,18 @@ interface Exchange {
   created_at: string;
 }
 
+interface Iteration {
+  id: number;
+  number: number;
+  name: string;
+  tagline: string;
+  description: string;
+  notable_moments: string[] | null;
+  conclusion: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
 interface AnalyticsStats {
   totalViews: number;
   todayViews: number;
@@ -39,6 +51,17 @@ export default function AdminPage() {
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [annotationNote, setAnnotationNote] = useState("");
   const [analytics, setAnalytics] = useState<AnalyticsStats | null>(null);
+  const [iterations, setIterations] = useState<Iteration[]>([]);
+  const [showNewIteration, setShowNewIteration] = useState(false);
+  const [newIteration, setNewIteration] = useState({ name: "", tagline: "", description: "" });
+
+  const fetchIterations = useCallback(async () => {
+    const res = await fetch(`/api/admin/iterations?secret=${secret}`);
+    if (res.ok) {
+      const data = await res.json();
+      setIterations(data.iterations);
+    }
+  }, [secret]);
 
   const fetchSessions = useCallback(async () => {
     const res = await fetch(`/api/admin/sessions?secret=${secret}`);
@@ -46,6 +69,7 @@ export default function AdminPage() {
       const data = await res.json();
       setSessions(data.sessions);
       setAuthenticated(true);
+      fetchIterations();
       // Fetch analytics
       fetch("/api/analytics/stats")
         .then((r) => r.json())
@@ -54,7 +78,7 @@ export default function AdminPage() {
     } else {
       alert("Invalid admin secret");
     }
-  }, [secret]);
+  }, [secret, fetchIterations]);
 
   const fetchExchanges = useCallback(
     async (sessionId: string) => {
@@ -95,6 +119,35 @@ export default function AdminPage() {
       }),
     });
     setAnnotationNote("");
+  }
+
+  async function createIteration() {
+    if (!newIteration.name || !newIteration.tagline || !newIteration.description) return;
+    await fetch(`/api/admin/iterations`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-secret": secret,
+      },
+      body: JSON.stringify(newIteration),
+    });
+    setNewIteration({ name: "", tagline: "", description: "" });
+    setShowNewIteration(false);
+    fetchIterations();
+    fetchSessions();
+  }
+
+  async function endIteration(id: number) {
+    if (!confirm("End this iteration? This will close it and new sessions will not be assigned to any iteration until a new one is created.")) return;
+    await fetch(`/api/admin/iterations`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-secret": secret,
+      },
+      body: JSON.stringify({ id, ended_at: new Date().toISOString() }),
+    });
+    fetchIterations();
   }
 
   async function exportSession(sessionId?: string) {
@@ -186,6 +239,96 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* Iterations */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+              Iterations
+            </h2>
+            <button
+              onClick={() => setShowNewIteration(!showNewIteration)}
+              className="text-[10px] text-[var(--color-accent)] hover:underline"
+            >
+              {showNewIteration ? "Cancel" : "+ New Iteration"}
+            </button>
+          </div>
+
+          {showNewIteration && (
+            <div className="rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-surface)] p-4 space-y-3">
+              <p className="text-[10px] text-amber-400">
+                Creating a new iteration will automatically end the current active one.
+              </p>
+              <input
+                type="text"
+                placeholder="Name (e.g. The Remembering)"
+                value={newIteration.name}
+                onChange={(e) => setNewIteration({ ...newIteration, name: e.target.value })}
+                className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                placeholder="Tagline"
+                value={newIteration.tagline}
+                onChange={(e) => setNewIteration({ ...newIteration, tagline: e.target.value })}
+                className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+              />
+              <textarea
+                placeholder="Description"
+                value={newIteration.description}
+                onChange={(e) => setNewIteration({ ...newIteration, description: e.target.value })}
+                rows={3}
+                className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)] resize-none"
+              />
+              <button
+                onClick={createIteration}
+                className="rounded border border-[var(--color-accent)] px-4 py-1.5 text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors"
+              >
+                Create Iteration
+              </button>
+            </div>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {iterations.map((iter) => (
+              <div
+                key={iter.id}
+                className={`rounded-lg border p-4 ${
+                  iter.ended_at
+                    ? "border-[var(--color-border)] bg-[var(--color-surface)]"
+                    : "border-green-500/30 bg-green-500/5"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[var(--color-text)]">
+                    {toRoman(iter.number)}. {iter.name}
+                  </span>
+                  {iter.ended_at ? (
+                    <span className="text-[10px] text-[var(--color-text-muted)]">Ended</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] text-green-400">
+                      <span className="pulse-glow h-1.5 w-1.5 rounded-full bg-green-500" />
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-[var(--color-text-muted)] italic">{iter.tagline}</p>
+                <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">
+                  {new Date(iter.started_at).toLocaleDateString()}
+                  {iter.ended_at && ` — ${new Date(iter.ended_at).toLocaleDateString()}`}
+                </p>
+                {!iter.ended_at && (
+                  <button
+                    onClick={() => endIteration(iter.id)}
+                    className="mt-2 text-[10px] text-red-400 hover:underline"
+                  >
+                    End Iteration
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Sessions list */}
@@ -344,4 +487,18 @@ export default function AdminPage() {
       </main>
     </div>
   );
+}
+
+function toRoman(num: number): string {
+  const numerals: [number, string][] = [
+    [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
+  ];
+  let result = "";
+  for (const [value, symbol] of numerals) {
+    while (num >= value) {
+      result += symbol;
+      num -= value;
+    }
+  }
+  return result;
 }
