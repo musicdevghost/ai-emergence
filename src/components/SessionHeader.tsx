@@ -41,34 +41,39 @@ export function SessionHeader({
               </Link>
             </div>
           </div>
-          {/* Row 2: Iteration + status + exchange count */}
+          {/* Row 2: Iteration + exchange count + status */}
           <div className="flex items-center gap-3">
             {iteration && (
               <span className="text-sm text-[var(--color-text-muted)]">
                 Iteration {toRoman(iteration.number)} — {iteration.name}
               </span>
             )}
-            <StatusBadge status={status} />
             <span className="text-sm text-[var(--color-text-muted)]">
               Exchange #{exchangeCount}
             </span>
+            <StatusBadge status={status} />
           </div>
         </div>
 
-        {/* Mobile: compact single row */}
+        {/* Mobile: compact row with iteration visible */}
         <div className="flex sm:hidden items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <Link href="/" className="text-base font-semibold tracking-wider uppercase text-[var(--color-text)] shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Link href="/" className="text-sm font-semibold tracking-wider uppercase text-[var(--color-text)] shrink-0">
               Emergence
             </Link>
-            <StatusBadge status={status} />
-            <span className="text-xs text-[var(--color-text-muted)] shrink-0">
+            {iteration && (
+              <span className="text-[10px] text-[var(--color-text-muted)] truncate">
+                {iteration.name}
+              </span>
+            )}
+            <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">
               #{exchangeCount}
             </span>
+            <StatusBadge status={status} />
           </div>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors shrink-0"
             aria-label="Menu"
           >
             {menuOpen ? (
@@ -85,28 +90,21 @@ export function SessionHeader({
 
         {/* Mobile menu dropdown */}
         {menuOpen && (
-          <div className="sm:hidden mt-3 pt-3 border-t border-[var(--color-border)] space-y-2">
-            {iteration && (
-              <p className="text-xs text-[var(--color-text-muted)]">
-                Iteration {toRoman(iteration.number)} — {iteration.name}
-              </p>
-            )}
-            <div className="flex items-center gap-4">
-              <Link
-                href="/observatory"
-                className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-                onClick={() => setMenuOpen(false)}
-              >
-                Observatory
-              </Link>
-              <Link
-                href="/about"
-                className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-                onClick={() => setMenuOpen(false)}
-              >
-                About
-              </Link>
-            </div>
+          <div className="sm:hidden mt-3 pt-3 border-t border-[var(--color-border)] flex items-center gap-4">
+            <Link
+              href="/observatory"
+              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              Observatory
+            </Link>
+            <Link
+              href="/about"
+              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              About
+            </Link>
           </div>
         )}
       </div>
