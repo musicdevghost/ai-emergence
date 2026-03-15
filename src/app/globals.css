@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0c0c0e;
-  --color-surface: #18181b;
-  --color-surface-elevated: #242428;
+  --color-bg: #09090b;
+  --color-surface: #1c1c20;
+  --color-surface-elevated: #27272a;
   --color-border: #3f3f46;
-  --color-text: #f4f4f5;
-  --color-text-muted: #b4b4bc;
+  --color-text: #fafafa;
+  --color-text-muted: #d4d4d8;
   --color-thinker: #8b5cf6;
   --color-challenger: #ef4444;
   --color-observer: #06b6d4;
@@ -25,8 +25,8 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
 }
 
 /* Typing indicator animation */
