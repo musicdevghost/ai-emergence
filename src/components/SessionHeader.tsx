@@ -4,13 +4,11 @@ import Link from "next/link";
 
 interface SessionHeaderProps {
   status: string;
-  exchangeCount: number;
   iteration?: { number: number; name: string } | null;
 }
 
 export function SessionHeader({
   status,
-  exchangeCount,
   iteration,
 }: SessionHeaderProps) {
 
@@ -44,12 +42,8 @@ export function SessionHeader({
             )}
           </div>
 
-          {/* Right: stats + nav */}
+          {/* Right: nav */}
           <div className="flex items-center gap-3 sm:gap-4">
-            <span className="text-[10px] sm:text-xs text-[var(--color-text-muted)]">
-              {exchangeCount}<span className="hidden sm:inline"> exchanges</span>
-            </span>
-            <span className="text-[var(--color-border)]">|</span>
             <Link
               href="/observatory"
               className="text-[10px] sm:text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
