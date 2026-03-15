@@ -364,24 +364,7 @@ export default function ObservatoryPage() {
           </div>
         </section>
 
-        {/* Audience analytics */}
-        {analytics && (
-          <section>
-            <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-              Audience
-            </h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <MetricCard
-                label="Watching Now"
-                value={analytics.liveViewers}
-                isLive={analytics.liveViewers > 0}
-              />
-              <MetricCard label="Views Today" value={analytics.todayViews} />
-              <MetricCard label="Total Views" value={analytics.totalViews} />
-              <MetricCard label="Unique Visitors" value={analytics.uniqueVisitors} />
-            </div>
-          </section>
-        )}
+        {/* Audience analytics — hidden for now while numbers are low */}
       </main>
 
       {/* Footer */}
