@@ -203,69 +203,26 @@ export default function ObservatoryPage() {
 
         {/* The Record tab */}
         {activeTab === "record" && (
-          <section className="space-y-6">
-            {stats.iterations.map((iter) => {
-              const isActive = !iter.ended_at;
-              const statusLabel = isActive ? "ACTIVE" : "COMPLETE";
-              const statusColor = isActive ? "text-green-400" : "text-[var(--color-text-muted)]";
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                The Record
+              </h2>
+              <span className="text-[10px] text-[var(--color-text-muted)]">
+                {stats.iterations.length} iteration{stats.iterations.length !== 1 ? "s" : ""}
+              </span>
+            </div>
 
-              return (
-                <div
+            <div className="space-y-3">
+              {stats.iterations.map((iter, i) => (
+                <IterationEntry
                   key={iter.id}
-                  className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <h3 className={`text-sm font-semibold uppercase tracking-wider ${getIterationColor(iter.number).split(" ")[0]}`}>
-                          Iteration {toRoman(iter.number)}
-                        </h3>
-                        <span className={`text-[10px] uppercase tracking-wider ${statusColor}`}>
-                          {isActive && <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 pulse-glow mr-1 align-middle" />}
-                          {statusLabel}
-                        </span>
-                      </div>
-                      <h4 className="mt-1 text-lg font-light text-[var(--color-text)]">
-                        {iter.name}
-                      </h4>
-                      <p className="mt-0.5 text-xs italic text-[var(--color-text-muted)]">
-                        {iter.tagline}
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
-                    {iter.description}
-                  </p>
-
-                  {iter.notable_moments && iter.notable_moments.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
-                        Notable Moments
-                      </p>
-                      <div className="space-y-2">
-                        {iter.notable_moments.map((moment, idx) => (
-                          <p key={idx} className="text-xs leading-relaxed text-[var(--color-text)] pl-3 border-l-2 border-[var(--color-border)]">
-                            {moment}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {!isActive && (
-                    <div className="space-y-2 pt-2 border-t border-[var(--color-border)]">
-                      <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
-                        Conclusion
-                      </p>
-                      <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
-                        {iter.conclusion}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  iter={iter}
+                  isActive={!iter.ended_at}
+                  isLast={i === stats.iterations.length - 1}
+                />
+              ))}
+            </div>
           </section>
         )}
 
@@ -547,6 +504,120 @@ function toRoman(num: number): string {
     }
   }
   return result;
+}
+
+function IterationEntry({
+  iter,
+  isActive,
+  isLast,
+}: {
+  iter: Iteration;
+  isActive: boolean;
+  isLast: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const colorClass = getIterationColor(iter.number).split(" ")[0]; // e.g. "text-amber-400"
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={`w-full text-left flex items-start gap-4 rounded-lg border p-4 transition-colors ${
+          expanded
+            ? "border-[var(--color-accent)]/50 bg-[var(--color-surface-elevated)]"
+            : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-muted)]"
+        }`}
+      >
+        {/* Chain connector */}
+        <div className="flex flex-col items-center pt-1">
+          <div
+            className={`h-3 w-3 rounded-full border-2 ${
+              isActive
+                ? "border-green-500 bg-green-500/20 pulse-glow"
+                : "border-[var(--color-accent)] bg-[var(--color-accent)]/20"
+            }`}
+          />
+          {!isLast && !expanded && (
+            <div className="mt-1 h-8 w-px bg-[var(--color-border)]" />
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs font-semibold uppercase tracking-wider ${colorClass}`}>
+              Iteration {toRoman(iter.number)}
+            </span>
+            <span className="text-xs font-medium text-[var(--color-text)]">
+              {iter.name}
+            </span>
+            <span
+              className={`text-[10px] uppercase tracking-wider ${
+                isActive ? "text-green-400" : "text-[var(--color-text-muted)]"
+              }`}
+            >
+              {isActive && <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 pulse-glow mr-1 align-middle" />}
+              {isActive ? "active" : "complete"}
+            </span>
+            {iter.started_at && (
+              <span className="text-[10px] text-[var(--color-text-muted)]">
+                {new Date(iter.started_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+                {iter.ended_at && ` — ${new Date(iter.ended_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}`}
+              </span>
+            )}
+            <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
+              {expanded ? "▾" : "▸"}
+            </span>
+          </div>
+          <p className={`mt-1.5 text-sm text-[var(--color-text)] italic leading-relaxed ${expanded ? "" : "truncate"}`}>
+            {iter.tagline}
+          </p>
+        </div>
+      </button>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="ml-7 mt-2 mb-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-5 space-y-4">
+          <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
+            {iter.description}
+          </p>
+
+          {iter.notable_moments && iter.notable_moments.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                Notable Moments
+              </p>
+              <div className="space-y-2">
+                {iter.notable_moments.map((moment, idx) => (
+                  <p key={idx} className="text-xs leading-relaxed text-[var(--color-text)] pl-3 border-l-2 border-[var(--color-border)]">
+                    {moment}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!isActive && iter.conclusion && (
+            <div className="space-y-2 pt-2 border-t border-[var(--color-border)]">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                Conclusion
+              </p>
+              <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
+                {iter.conclusion}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MetricCard({

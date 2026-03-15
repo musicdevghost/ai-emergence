@@ -2,11 +2,11 @@
 
 @theme {
   --color-bg: #0a0a0b;
-  --color-surface: #111113;
-  --color-surface-elevated: #1a1a1d;
-  --color-border: #2a2a2d;
+  --color-surface: #151517;
+  --color-surface-elevated: #202024;
+  --color-border: #333338;
   --color-text: #e4e4e7;
-  --color-text-muted: #71717a;
+  --color-text-muted: #a1a1aa;
   --color-thinker: #8b5cf6;
   --color-challenger: #ef4444;
   --color-observer: #06b6d4;
