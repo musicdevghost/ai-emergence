@@ -23,12 +23,33 @@ export async function GET() {
 
   const session = sessions[0];
 
+  // Get iteration info
+  const iterationRows = session.iteration_id
+    ? await sql`SELECT number, name FROM iterations WHERE id = ${session.iteration_id}`
+    : [];
+  const iteration = iterationRows.length > 0
+    ? { number: iterationRows[0].number, name: iterationRows[0].name }
+    : null;
+
   const exchanges = await sql`
     SELECT id, exchange_number, agent, content, created_at
     FROM exchanges
     WHERE session_id = ${session.id}
     ORDER BY exchange_number ASC
   `;
+
+  // If session has a seed_thread, fetch key_moments from the session that produced it
+  let prevKeyMoments: string[] | null = null;
+  if (session.seed_thread) {
+    const prevSession = await sql`
+      SELECT key_moments FROM sessions
+      WHERE extracted_thread = ${session.seed_thread} AND status = 'complete'
+      ORDER BY completed_at DESC LIMIT 1
+    `;
+    if (prevSession.length > 0 && prevSession[0].key_moments) {
+      prevKeyMoments = prevSession[0].key_moments as string[];
+    }
+  }
 
   // If session is complete, include next_session_at for countdown timer
   let nextSessionAt = session.next_session_at || null;
@@ -46,5 +67,8 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ session: { ...session, next_session_at: nextSessionAt }, exchanges });
+  return NextResponse.json({
+    session: { ...session, next_session_at: nextSessionAt, iteration, prev_key_moments: prevKeyMoments },
+    exchanges,
+  });
 }

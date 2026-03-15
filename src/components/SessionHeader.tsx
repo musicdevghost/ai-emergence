@@ -5,11 +5,13 @@ import Link from "next/link";
 interface SessionHeaderProps {
   status: string;
   exchangeCount: number;
+  iteration?: { number: number; name: string } | null;
 }
 
 export function SessionHeader({
   status,
   exchangeCount,
+  iteration,
 }: SessionHeaderProps) {
 
   return (
@@ -21,6 +23,11 @@ export function SessionHeader({
             <Link href="/" className="text-sm font-semibold tracking-wider uppercase text-[var(--color-text)]">
               Emergence
             </Link>
+            {iteration && (
+              <span className="text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                <span className="hidden sm:inline">Iteration {toRoman(iteration.number)} — </span>{iteration.name}
+              </span>
+            )}
             {status === "active" && (
               <span className="flex items-center gap-1 text-[10px] sm:text-xs text-[var(--color-text-muted)]">
                 <span className="pulse-glow h-1.5 w-1.5 rounded-full bg-green-500" />
@@ -60,4 +67,18 @@ export function SessionHeader({
       </div>
     </header>
   );
+}
+
+function toRoman(num: number): string {
+  const numerals: [number, string][] = [
+    [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
+  ];
+  let result = "";
+  for (const [value, symbol] of numerals) {
+    while (num >= value) {
+      result += symbol;
+      num -= value;
+    }
+  }
+  return result;
 }

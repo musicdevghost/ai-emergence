@@ -12,6 +12,18 @@ interface Pagination {
   totalPages: number;
 }
 
+interface Iteration {
+  id: number;
+  number: number;
+  name: string;
+  tagline: string;
+  description: string;
+  notable_moments: string[] | null;
+  conclusion: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
 interface Stats {
   totalSessions: number;
   totalExchanges: number;
@@ -24,18 +36,13 @@ interface Stats {
     seed_thread: string | null;
     extracted_thread: string | null;
     exchange_count: number;
+    iteration_id: number | null;
+    iteration_number: number | null;
+    iteration_name: string | null;
   }[];
   activeSession: { id: string; exchange_count: number; status: string } | null;
+  iterations: Iteration[];
   pagination: Pagination;
-}
-
-interface AnalyticsStats {
-  totalViews: number;
-  todayViews: number;
-  uniqueVisitors: number;
-  liveViewers: number;
-  viewsByPage: { path: string; count: number }[];
-  dailyViews: { date: string; count: number }[];
 }
 
 interface Exchange {
@@ -46,18 +53,33 @@ interface Exchange {
   created_at: string;
 }
 
+const ITERATION_COLORS: Record<number, string> = {
+  1: "text-amber-400 border-amber-400/30 bg-amber-400/10",
+  2: "text-blue-400 border-blue-400/30 bg-blue-400/10",
+  3: "text-purple-400 border-purple-400/30 bg-purple-400/10",
+  4: "text-red-400 border-red-400/30 bg-red-400/10",
+  5: "text-green-400 border-green-400/30 bg-green-400/10",
+};
+
+function getIterationColor(num: number): string {
+  return ITERATION_COLORS[num] || "text-[var(--color-text-muted)] border-[var(--color-border)] bg-[var(--color-surface)]";
+}
+
 export default function ObservatoryPage() {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [loadingPage, setLoadingPage] = useState(false);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [sessionExchanges, setSessionExchanges] = useState<Record<string, Exchange[]>>({});
+  const [iterationFilter, setIterationFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<"chain" | "record">("chain");
 
-  const fetchStats = useCallback(async (p: number) => {
+  const fetchStats = useCallback(async (p: number, iteration: string) => {
     try {
-      const res = await fetch(`/api/stats?page=${p}`);
+      const params = new URLSearchParams({ page: String(p) });
+      if (iteration !== "all") params.set("iteration", iteration);
+      const res = await fetch(`/api/stats?${params}`);
       const data = await res.json();
       setStats(data);
     } catch (err) {
@@ -66,19 +88,23 @@ export default function ObservatoryPage() {
   }, []);
 
   useEffect(() => {
-    Promise.all([
-      fetchStats(1),
-      fetch("/api/analytics/stats").then((r) => r.json()).then(setAnalytics),
-    ])
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    fetchStats(1, "all").finally(() => setLoading(false));
   }, [fetchStats]);
 
   const goToPage = useCallback(async (p: number) => {
     setLoadingPage(true);
     setExpandedSession(null);
     setPage(p);
-    await fetchStats(p);
+    await fetchStats(p, iterationFilter);
+    setLoadingPage(false);
+  }, [fetchStats, iterationFilter]);
+
+  const changeIteration = useCallback(async (iteration: string) => {
+    setIterationFilter(iteration);
+    setPage(1);
+    setExpandedSession(null);
+    setLoadingPage(true);
+    await fetchStats(1, iteration);
     setLoadingPage(false);
   }, [fetchStats]);
 
@@ -151,8 +177,100 @@ export default function ObservatoryPage() {
       </div>
 
       <main className="mx-auto max-w-5xl px-6 py-8 space-y-8">
-        {/* Emergence Chain — first */}
-        <section>
+        {/* Tab switcher */}
+        <div className="flex items-center gap-1 border-b border-[var(--color-border)]">
+          <button
+            onClick={() => setActiveTab("chain")}
+            className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors border-b-2 -mb-px ${
+              activeTab === "chain"
+                ? "border-[var(--color-accent)] text-[var(--color-text)]"
+                : "border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            Emergence Chain
+          </button>
+          <button
+            onClick={() => setActiveTab("record")}
+            className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors border-b-2 -mb-px ${
+              activeTab === "record"
+                ? "border-[var(--color-accent)] text-[var(--color-text)]"
+                : "border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            The Record
+          </button>
+        </div>
+
+        {/* The Record tab */}
+        {activeTab === "record" && (
+          <section className="space-y-6">
+            {stats.iterations.map((iter) => {
+              const isActive = !iter.ended_at;
+              const statusLabel = isActive ? "ACTIVE" : "COMPLETE";
+              const statusColor = isActive ? "text-green-400" : "text-[var(--color-text-muted)]";
+
+              return (
+                <div
+                  key={iter.id}
+                  className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <h3 className={`text-sm font-semibold uppercase tracking-wider ${getIterationColor(iter.number).split(" ")[0]}`}>
+                          Iteration {toRoman(iter.number)}
+                        </h3>
+                        <span className={`text-[10px] uppercase tracking-wider ${statusColor}`}>
+                          {isActive && <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 pulse-glow mr-1 align-middle" />}
+                          {statusLabel}
+                        </span>
+                      </div>
+                      <h4 className="mt-1 text-lg font-light text-[var(--color-text)]">
+                        {iter.name}
+                      </h4>
+                      <p className="mt-0.5 text-xs italic text-[var(--color-text-muted)]">
+                        {iter.tagline}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
+                    {iter.description}
+                  </p>
+
+                  {iter.notable_moments && iter.notable_moments.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                        Notable Moments
+                      </p>
+                      <div className="space-y-2">
+                        {iter.notable_moments.map((moment, idx) => (
+                          <p key={idx} className="text-xs leading-relaxed text-[var(--color-text)] pl-3 border-l-2 border-[var(--color-border)]">
+                            {moment}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!isActive && (
+                    <div className="space-y-2 pt-2 border-t border-[var(--color-border)]">
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                        Conclusion
+                      </p>
+                      <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
+                        {iter.conclusion}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        )}
+
+        {/* Emergence Chain tab */}
+        {activeTab === "chain" && (<section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
               Emergence Chain
@@ -163,6 +281,35 @@ export default function ObservatoryPage() {
               </span>
             )}
           </div>
+
+          {/* Iteration filter pills */}
+          {stats.iterations.length > 0 && (
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <button
+                onClick={() => changeIteration("all")}
+                className={`rounded-full px-3 py-1 text-[10px] uppercase tracking-wider border transition-colors ${
+                  iterationFilter === "all"
+                    ? "border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10"
+                    : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]"
+                }`}
+              >
+                All
+              </button>
+              {stats.iterations.map((iter) => (
+                <button
+                  key={iter.id}
+                  onClick={() => changeIteration(String(iter.id))}
+                  className={`rounded-full px-3 py-1 text-[10px] uppercase tracking-wider border transition-colors ${
+                    iterationFilter === String(iter.id)
+                      ? getIterationColor(iter.number)
+                      : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]"
+                  }`}
+                >
+                  {iter.name}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className={`space-y-3 ${loadingPage ? "opacity-50" : ""}`}>
             {stats.recentSessions.map((s, i) => {
@@ -201,6 +348,12 @@ export default function ObservatoryPage() {
                         <span className="text-xs font-medium text-[var(--color-text)]">
                           {sessionLabel}
                         </span>
+                        {/* Iteration badge */}
+                        {s.iteration_number && s.iteration_name && (
+                          <span className={`rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wider border ${getIterationColor(s.iteration_number)}`}>
+                            {s.iteration_name}
+                          </span>
+                        )}
                         <span className="text-[10px] text-[var(--color-text-muted)]">
                           {new Date(s.created_at).toLocaleDateString("en-US", {
                             month: "short",
@@ -316,7 +469,8 @@ export default function ObservatoryPage() {
               </button>
             </div>
           )}
-        </section>
+        </section>)}
+
 
         {/* Session metrics */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -363,8 +517,6 @@ export default function ObservatoryPage() {
             })}
           </div>
         </section>
-
-        {/* Audience analytics — hidden for now while numbers are low */}
       </main>
 
       {/* Footer */}
@@ -381,6 +533,20 @@ export default function ObservatoryPage() {
       </footer>
     </div>
   );
+}
+
+function toRoman(num: number): string {
+  const numerals: [number, string][] = [
+    [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
+  ];
+  let result = "";
+  for (const [value, symbol] of numerals) {
+    while (num >= value) {
+      result += symbol;
+      num -= value;
+    }
+  }
+  return result;
 }
 
 function MetricCard({
