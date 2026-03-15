@@ -24,6 +24,13 @@ interface Exchange {
   created_at: string;
 }
 
+interface AnalyticsStats {
+  totalViews: number;
+  todayViews: number;
+  uniqueVisitors: number;
+  liveViewers: number;
+}
+
 export default function AdminPage() {
   const [secret, setSecret] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
@@ -31,6 +38,7 @@ export default function AdminPage() {
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [annotationNote, setAnnotationNote] = useState("");
+  const [analytics, setAnalytics] = useState<AnalyticsStats | null>(null);
 
   const fetchSessions = useCallback(async () => {
     const res = await fetch(`/api/admin/sessions?secret=${secret}`);
@@ -38,6 +46,11 @@ export default function AdminPage() {
       const data = await res.json();
       setSessions(data.sessions);
       setAuthenticated(true);
+      // Fetch analytics
+      fetch("/api/analytics/stats")
+        .then((r) => r.json())
+        .then(setAnalytics)
+        .catch(() => {});
     } else {
       alert("Invalid admin secret");
     }
@@ -148,7 +161,32 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-6">
+      <main className="mx-auto max-w-6xl px-6 py-6 space-y-6">
+        {/* Analytics */}
+        {analytics && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Watching Now</p>
+              <p className="mt-1 text-lg font-light text-[var(--color-text)] flex items-center gap-2">
+                {analytics.liveViewers > 0 && <span className="pulse-glow h-2 w-2 rounded-full bg-green-500" />}
+                {analytics.liveViewers}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Views Today</p>
+              <p className="mt-1 text-lg font-light text-[var(--color-text)]">{analytics.todayViews}</p>
+            </div>
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Total Views</p>
+              <p className="mt-1 text-lg font-light text-[var(--color-text)]">{analytics.totalViews}</p>
+            </div>
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Unique Visitors</p>
+              <p className="mt-1 text-lg font-light text-[var(--color-text)]">{analytics.uniqueVisitors}</p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Sessions list */}
           <div className="lg:col-span-1 space-y-2">
