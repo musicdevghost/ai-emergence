@@ -1,31 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
 interface SessionHeaderProps {
   status: string;
   exchangeCount: number;
-  sessionNumber?: number;
 }
 
 export function SessionHeader({
   status,
   exchangeCount,
 }: SessionHeaderProps) {
-  const [viewers, setViewers] = useState<number | null>(null);
-
-  useEffect(() => {
-    const fetchViewers = () => {
-      fetch("/api/analytics/live")
-        .then((r) => r.json())
-        .then((d) => setViewers(d.viewers))
-        .catch(() => {});
-    };
-    fetchViewers();
-    const interval = setInterval(fetchViewers, 15000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)]/80 backdrop-blur-md">
@@ -54,15 +39,6 @@ export function SessionHeader({
 
           {/* Right: stats + nav */}
           <div className="flex items-center gap-3 sm:gap-4">
-            {viewers !== null && viewers > 0 && (
-              <span className="flex items-center gap-1 text-[10px] sm:text-xs text-[var(--color-text-muted)]">
-                <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                {viewers}
-              </span>
-            )}
             <span className="text-[10px] sm:text-xs text-[var(--color-text-muted)]">
               {exchangeCount}<span className="hidden sm:inline"> exchanges</span>
             </span>
@@ -71,8 +47,7 @@ export function SessionHeader({
               href="/observatory"
               className="text-[10px] sm:text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
             >
-              <span className="sm:hidden">Stats</span>
-              <span className="hidden sm:inline">Observatory</span>
+              Observatory
             </Link>
             <Link
               href="/about"
