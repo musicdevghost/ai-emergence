@@ -238,7 +238,6 @@ export default function TheatrePage() {
     <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
       <SessionHeader
         status={session.status}
-        exchangeCount={visibleExchanges.length}
         iteration={session.iteration}
       />
 

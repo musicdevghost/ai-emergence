@@ -5,13 +5,11 @@ import Link from "next/link";
 
 interface SessionHeaderProps {
   status: string;
-  exchangeCount: number;
   iteration?: { number: number; name: string } | null;
 }
 
 export function SessionHeader({
   status,
-  exchangeCount,
   iteration,
 }: SessionHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -41,16 +39,13 @@ export function SessionHeader({
               </Link>
             </div>
           </div>
-          {/* Row 2: Iteration + exchange count + status */}
+          {/* Row 2: Iteration + status */}
           <div className="flex items-center gap-3">
             {iteration && (
               <span className="text-sm text-[var(--color-text-muted)]">
                 Iteration {toRoman(iteration.number)} — {iteration.name}
               </span>
             )}
-            <span className="text-sm text-[var(--color-text-muted)]">
-              Exchange #{exchangeCount}
-            </span>
             <StatusBadge status={status} />
           </div>
         </div>
@@ -66,9 +61,6 @@ export function SessionHeader({
                 {iteration.name}
               </span>
             )}
-            <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">
-              #{exchangeCount}
-            </span>
             <StatusBadge status={status} />
           </div>
           <button
