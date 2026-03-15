@@ -24,6 +24,8 @@ export interface SessionRow {
   is_baseline: boolean;
   exchange_count: number;
   next_session_at: string | null;
+  iteration_id: number | null;
+  key_moments: string[] | null;
 }
 
 interface Exchange {
@@ -90,9 +92,22 @@ export async function getActiveSession(): Promise<SessionRow | null> {
 /** Create a new session, optionally seeded with a thread */
 async function createSession(seedThread: string | null): Promise<SessionRow> {
   const sql = getDb();
+
+  // Get current active iteration
+  const iterations = await sql`
+    SELECT id FROM iterations WHERE ended_at IS NULL ORDER BY number DESC LIMIT 1
+  `;
+  const iterationId = iterations.length > 0 ? (iterations[0].id as number) : null;
+
+  // Get current config version
+  const configVersions = await sql`
+    SELECT id FROM config_versions ORDER BY id DESC LIMIT 1
+  `;
+  const configVersion = configVersions.length > 0 ? (configVersions[0].id as number) : null;
+
   const sessions = await sql`
-    INSERT INTO sessions (seed_thread, status)
-    VALUES (${seedThread}, 'active')
+    INSERT INTO sessions (seed_thread, status, iteration_id, config_version)
+    VALUES (${seedThread}, 'active', ${iterationId}, ${configVersion})
     RETURNING *
   `;
 
@@ -127,10 +142,29 @@ export async function runNextExchange(session: SessionRow) {
 
   // If first exchange with seed thread, include it
   if (isFirstExchange && session.seed_thread) {
-    messages.push({
-      role: "user",
-      content: `The following thread was extracted from the previous session as the most compelling unresolved question or idea. Use it as your opening:\n\n"${session.seed_thread}"`,
-    });
+    // Check if we should use enriched seed (Iteration II+)
+    let seedContent = `The following thread was extracted from the previous session as the most compelling unresolved question or idea. Use it as your opening:\n\n"${session.seed_thread}"`;
+
+    if (session.iteration_id) {
+      const iterationRows = await sql`
+        SELECT number FROM iterations WHERE id = ${session.iteration_id}
+      `;
+      if (iterationRows.length > 0 && (iterationRows[0].number as number) >= 2) {
+        // Fetch key_moments from the session that produced this seed
+        const prevSession = await sql`
+          SELECT key_moments FROM sessions
+          WHERE extracted_thread = ${session.seed_thread} AND status = 'complete'
+          ORDER BY completed_at DESC LIMIT 1
+        `;
+        const keyMoments = prevSession.length > 0 ? prevSession[0].key_moments as string[] | null : null;
+        if (keyMoments && keyMoments.length > 0) {
+          const momentsList = keyMoments.map((m, i) => `${i + 1}. ${m}`).join("\n");
+          seedContent = `A previous conversation left this unresolved thread: "${session.seed_thread}"\n\nKey moments from that conversation:\n${momentsList}\n\nPick up the thread naturally, carrying the weight of what was already discovered.`;
+        }
+      }
+    }
+
+    messages.push({ role: "user", content: seedContent });
   } else if (isFirstExchange && !session.seed_thread) {
     // Very first session ever
     messages.push({
@@ -216,6 +250,26 @@ async function endSession(sessionId: string) {
     ]
   );
 
+  // Extract key moments (3-4 genuine shifts)
+  let keyMoments: string[] | null = null;
+  try {
+    const momentsRaw = await callWithRetry(
+      "claude-haiku-4-5-20251001",
+      "You extract key moments from philosophical dialogues. Return ONLY a JSON array of 3-4 strings. Each string should be 1-2 sentences describing a genuine shift — not just an argument, but a moment where something actually changed. No preamble, no explanation, just the JSON array.",
+      [
+        {
+          role: "user",
+          content: `Extract 3-4 key moments from this dialogue:\n\n${conversationSummary}`,
+        },
+      ]
+    );
+    keyMoments = JSON.parse(momentsRaw);
+    if (!Array.isArray(keyMoments)) keyMoments = null;
+  } catch {
+    // If parsing fails, continue without key_moments
+    console.error("Failed to parse key_moments, continuing without them");
+  }
+
   // Calculate and store the next session start time (3-4 hour gap)
   const gapHours = 3 + Math.random();
   const nextSessionAt = new Date(Date.now() + gapHours * 60 * 60 * 1000);
@@ -223,7 +277,8 @@ async function endSession(sessionId: string) {
   await sql`
     UPDATE sessions
     SET status = 'complete', completed_at = NOW(), extracted_thread = ${extraction},
-        next_session_at = ${nextSessionAt.toISOString()}
+        next_session_at = ${nextSessionAt.toISOString()},
+        key_moments = ${keyMoments ? JSON.stringify(keyMoments) : null}::jsonb
     WHERE id = ${sessionId}
   `;
 }

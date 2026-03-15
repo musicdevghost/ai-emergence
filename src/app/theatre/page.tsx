@@ -24,6 +24,8 @@ interface Session {
   completed_at: string | null;
   created_at: string;
   next_session_at: string | null;
+  iteration?: { number: number; name: string } | null;
+  prev_key_moments?: string[] | null;
 }
 
 const POLL_INTERVAL = 5000;
@@ -237,6 +239,7 @@ export default function TheatrePage() {
       <SessionHeader
         status={session.status}
         exchangeCount={visibleExchanges.length}
+        iteration={session.iteration}
       />
 
       {/* Project description */}
@@ -248,11 +251,10 @@ export default function TheatrePage() {
 
       {/* Seed thread banner */}
       {session.seed_thread && (
-        <div className="mx-auto max-w-2xl px-4 py-3 border-b border-[var(--color-border)]">
-          <p className="text-xs text-[var(--color-text-muted)] italic">
-            Thread from previous session: &ldquo;{renderContent(session.seed_thread)}&rdquo;
-          </p>
-        </div>
+        <SeedThreadBanner
+          seedThread={session.seed_thread}
+          keyMoments={session.prev_key_moments}
+        />
       )}
 
       {/* Exchange list */}
@@ -386,6 +388,47 @@ function Countdown({ targetTime }: { targetTime: string }) {
       <p className="text-lg font-light tracking-wider text-[var(--color-text)] tabular-nums">
         {remaining}
       </p>
+    </div>
+  );
+}
+
+function SeedThreadBanner({
+  seedThread,
+  keyMoments,
+}: {
+  seedThread: string;
+  keyMoments?: string[] | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasKeyMoments = keyMoments && keyMoments.length > 0;
+
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-3 border-b border-[var(--color-border)]">
+      <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
+        Carried forward from last session
+      </p>
+      <p className="text-xs text-[var(--color-text)] italic leading-relaxed">
+        &ldquo;{renderContent(seedThread)}&rdquo;
+      </p>
+      {hasKeyMoments && (
+        <>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-2 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+          >
+            {expanded ? "▾ Hide key moments" : "▸ Show key moments from previous session"}
+          </button>
+          {expanded && (
+            <div className="mt-2 space-y-1.5 pl-3 border-l-2 border-[var(--color-border)]">
+              {keyMoments!.map((moment, idx) => (
+                <p key={idx} className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+                  {moment}
+                </p>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
