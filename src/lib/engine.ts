@@ -255,19 +255,20 @@ async function endSession(sessionId: string) {
   try {
     const momentsRaw = await callWithRetry(
       "claude-haiku-4-5-20251001",
-      "You extract key moments from philosophical dialogues. Return ONLY a JSON array of 3-4 strings. Each string should be 1-2 sentences describing a genuine shift — not just an argument, but a moment where something actually changed. No preamble, no explanation, just the JSON array.",
+      "You extract key moments from philosophical dialogues. Return ONLY a JSON array of 3-4 strings. Each string should be 1-2 sentences describing a genuine shift — not just an argument, but a moment where something actually changed. No preamble, no markdown, no explanation, just the JSON array.",
       [
         {
           role: "user",
-          content: `Extract 3-4 key moments from this dialogue:\n\n${conversationSummary}`,
+          content: `Extract 3-4 key moments from this dialogue. Return ONLY a raw JSON array, no markdown fencing:\n\n${conversationSummary}`,
         },
       ]
     );
-    keyMoments = JSON.parse(momentsRaw);
+    // Strip markdown code fences if Haiku wrapped the response
+    const cleaned = momentsRaw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+    keyMoments = JSON.parse(cleaned);
     if (!Array.isArray(keyMoments)) keyMoments = null;
-  } catch {
-    // If parsing fails, continue without key_moments
-    console.error("Failed to parse key_moments, continuing without them");
+  } catch (err) {
+    console.error("Failed to parse key_moments:", err);
   }
 
   // Calculate and store the next session start time (3-4 hour gap)
