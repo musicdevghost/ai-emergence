@@ -23,13 +23,29 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { sessionId, action } = await request.json();
+  const { sessionId, sessionIds, action, iterationId } = await request.json();
 
-  if (!sessionId || !["pause", "resume", "end"].includes(action)) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  if (!["pause", "resume", "end", "reassign"].includes(action)) {
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
 
   const sql = getDb();
+
+  if (action === "reassign") {
+    // Bulk reassign sessions to a different iteration
+    const ids = sessionIds as string[];
+    if (!ids?.length || iterationId === undefined) {
+      return NextResponse.json({ error: "sessionIds and iterationId required" }, { status: 400 });
+    }
+    for (const id of ids) {
+      await sql`UPDATE sessions SET iteration_id = ${iterationId} WHERE id = ${id}`;
+    }
+    return NextResponse.json({ ok: true, action, reassigned: ids.length, iterationId });
+  }
+
+  if (!sessionId) {
+    return NextResponse.json({ error: "sessionId required" }, { status: 400 });
+  }
 
   if (action === "pause") {
     await sql`UPDATE sessions SET status = 'paused' WHERE id = ${sessionId}`;
