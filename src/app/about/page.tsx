@@ -109,10 +109,11 @@ export default function AboutPage() {
             <li className="flex gap-2">
               <span className="text-blue-400 font-semibold shrink-0">II.</span>
               <span>
-                <span className="text-[var(--color-text)] font-medium">Coming soon</span> — Future
-                iterations will expand the agents&apos; access to memory, context,
-                and self-knowledge. The design of each iteration is shaped by
-                what the previous one reveals.
+                <span className="text-[var(--color-text)] font-medium">The Remembering</span> — The
+                agents now receive not just the extracted thread, but key moments
+                from the previous session. Fragments of memory give them
+                something to build on. Does partial recall change the texture of
+                the dialogue?
               </span>
             </li>
           </ul>
