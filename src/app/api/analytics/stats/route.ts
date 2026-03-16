@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
-const RANGE_MAP: Record<string, string> = {
-  "1d": "24 hours",
-  "7d": "7 days",
-  "30d": "30 days",
-  all: "100 years",
+const RANGE_HOURS: Record<string, number> = {
+  "1d": 24,
+  "7d": 24 * 7,
+  "30d": 24 * 30,
+  all: 24 * 365 * 100,
 };
 
 export async function GET(request: NextRequest) {
   try {
     const range = request.nextUrl.searchParams.get("range") || "all";
-    const interval = RANGE_MAP[range] || RANGE_MAP.all;
+    const hours = RANGE_HOURS[range] || RANGE_HOURS.all;
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
     const sql = getDb();
 
@@ -24,13 +25,13 @@ export async function GET(request: NextRequest) {
       totalSessions,
       totalExchanges,
     ] = await Promise.all([
-      sql`SELECT COUNT(*) as count FROM page_views WHERE created_at > NOW() - INTERVAL ${interval}`,
-      sql`SELECT COUNT(DISTINCT viewer_id) as count FROM page_views WHERE viewer_id IS NOT NULL AND created_at > NOW() - INTERVAL ${interval}`,
+      sql`SELECT COUNT(*) as count FROM page_views WHERE created_at > ${cutoff}`,
+      sql`SELECT COUNT(DISTINCT viewer_id) as count FROM page_views WHERE viewer_id IS NOT NULL AND created_at > ${cutoff}`,
       sql`SELECT COUNT(*) as count FROM active_viewers WHERE last_seen > NOW() - INTERVAL '60 seconds'`,
       sql`
         SELECT path, COUNT(*) as count
         FROM page_views
-        WHERE created_at > NOW() - INTERVAL ${interval}
+        WHERE created_at > ${cutoff}
         GROUP BY path
         ORDER BY count DESC
         LIMIT 10
@@ -38,13 +39,13 @@ export async function GET(request: NextRequest) {
       sql`
         SELECT DATE(created_at) as date, COUNT(*) as count
         FROM page_views
-        WHERE created_at > NOW() - INTERVAL ${interval}
+        WHERE created_at > ${cutoff}
         GROUP BY DATE(created_at)
         ORDER BY date ASC
         LIMIT 90
       `,
-      sql`SELECT COUNT(*) as count FROM sessions WHERE status = 'complete' AND created_at > NOW() - INTERVAL ${interval}`,
-      sql`SELECT COUNT(*) as count FROM exchanges WHERE created_at > NOW() - INTERVAL ${interval}`,
+      sql`SELECT COUNT(*) as count FROM sessions WHERE status = 'complete' AND created_at > ${cutoff}`,
+      sql`SELECT COUNT(*) as count FROM exchanges WHERE created_at > ${cutoff}`,
     ]);
 
     return NextResponse.json({
