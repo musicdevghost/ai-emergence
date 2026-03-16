@@ -13,6 +13,8 @@ interface Session {
   extracted_thread: string | null;
   exchange_count: number;
   is_baseline: boolean;
+  iteration_id: number | null;
+  key_moments: string[] | null;
 }
 
 interface Exchange {
@@ -489,109 +491,189 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Exchange detail */}
+          {/* Session detail */}
           <div className="lg:col-span-2">
             {selectedSession ? (
-              <div>
-                <div className="mb-4 flex items-center gap-3">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                    Exchanges
-                  </h2>
-                  {sessions.find((s) => s.id === selectedSession)?.status ===
-                    "active" && (
-                    <>
-                      <button
-                        onClick={() =>
-                          handleSessionAction(selectedSession, "pause")
-                        }
-                        className="text-[10px] text-amber-400 hover:underline"
-                      >
-                        Pause
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleSessionAction(selectedSession, "end")
-                        }
-                        className="text-[10px] text-red-400 hover:underline"
-                      >
-                        End
-                      </button>
-                    </>
-                  )}
-                  {sessions.find((s) => s.id === selectedSession)?.status ===
-                    "paused" && (
-                    <button
-                      onClick={() =>
-                        handleSessionAction(selectedSession, "resume")
-                      }
-                      className="text-[10px] text-green-400 hover:underline"
-                    >
-                      Resume
-                    </button>
-                  )}
-                  <button
-                    onClick={() => exportSession(selectedSession)}
-                    className="text-[10px] text-[var(--color-text-muted)] hover:underline ml-auto"
-                  >
-                    Export JSON
-                  </button>
-                </div>
-
-                <div className="space-y-3 max-h-[75vh] overflow-y-auto">
-                  {exchanges.map((e) => {
-                    const agent = AGENTS[e.agent];
-                    return (
-                      <div
-                        key={e.id}
-                        className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span
-                            className="text-xs font-semibold uppercase tracking-wider"
-                            style={{ color: agent.color }}
-                          >
-                            {agent.name}
+              (() => {
+                const session = sessions.find((s) => s.id === selectedSession);
+                if (!session) return null;
+                const iterationForSession = iterations.find((i) => i.id === session.iteration_id);
+                return (
+                  <div className="space-y-4">
+                    {/* Session metadata panel */}
+                    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-4">
+                      {/* Header row */}
+                      <div className="flex items-center flex-wrap gap-2">
+                        <span className="font-mono text-xs text-[var(--color-text)]">
+                          {session.id.slice(0, 8)}
+                        </span>
+                        {iterationForSession && (
+                          <span className="rounded-full border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-2 py-0.5 text-[10px] text-[var(--color-accent)]">
+                            {toRoman(iterationForSession.number)}. {iterationForSession.name}
                           </span>
-                          <span className="text-[10px] text-[var(--color-text-muted)]">
-                            #{e.exchange_number + 1}
-                          </span>
-                          <span className="text-[10px] text-[var(--color-text-muted)]">
-                            {e.model}
-                          </span>
-                          <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
-                            {new Date(e.created_at).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-[var(--color-text)] leading-relaxed">
-                          {stripMarkdown(e.content)}
-                        </p>
-                        {/* Annotation input */}
-                        <div className="mt-3 flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Add annotation..."
-                            value={annotationNote}
-                            onChange={(ev) => setAnnotationNote(ev.target.value)}
-                            className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-[10px] text-[var(--color-text)] focus:outline-none"
-                            onKeyDown={(ev) => {
-                              if (ev.key === "Enter") addAnnotation(e.id);
-                            }}
-                          />
-                          <button
-                            onClick={() => addAnnotation(e.id)}
-                            className="text-[10px] text-[var(--color-accent)] hover:underline"
-                          >
-                            Annotate
-                          </button>
-                        </div>
+                        )}
+                        <span className="text-[10px] text-[var(--color-text-muted)]">
+                          {session.exchange_count} exchanges
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${
+                            session.status === "active"
+                              ? "bg-green-500/10 text-green-400 border border-green-500/30"
+                              : session.status === "paused"
+                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                                : "bg-[var(--color-bg)] text-[var(--color-text-muted)] border border-[var(--color-border)]"
+                          }`}
+                        >
+                          {session.status}
+                        </span>
+                        <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
+                          {new Date(session.created_at).toLocaleString()}
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+
+                      {/* Seed thread */}
+                      {session.seed_thread && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
+                            Seed Thread
+                          </p>
+                          <p className="text-xs text-[var(--color-text)] leading-relaxed italic bg-[var(--color-bg)] rounded p-3 border border-[var(--color-border)]">
+                            {session.seed_thread}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Extracted thread */}
+                      {session.extracted_thread && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
+                            Extracted Thread
+                          </p>
+                          <p className="text-xs text-[var(--color-text)] leading-relaxed italic bg-[var(--color-bg)] rounded p-3 border border-[var(--color-border)]">
+                            {session.extracted_thread}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Key moments */}
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
+                          Key Moments
+                        </p>
+                        {session.key_moments && session.key_moments.length > 0 ? (
+                          <ol className="space-y-1.5 bg-[var(--color-bg)] rounded p-3 border border-[var(--color-border)]">
+                            {session.key_moments.map((moment, i) => (
+                              <li key={i} className="flex gap-2 text-xs text-[var(--color-text)] leading-relaxed">
+                                <span className="text-[var(--color-accent)] font-mono shrink-0">{i + 1}.</span>
+                                <span>{moment}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <p className="text-[10px] text-[var(--color-text-muted)] italic bg-[var(--color-bg)] rounded p-3 border border-[var(--color-border)]">
+                            No key moments extracted
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-3 pt-1 border-t border-[var(--color-border)]">
+                        {session.status === "active" && (
+                          <>
+                            <button
+                              onClick={() => handleSessionAction(selectedSession, "pause")}
+                              className="text-[10px] text-amber-400 hover:underline"
+                            >
+                              Pause
+                            </button>
+                            <button
+                              onClick={() => handleSessionAction(selectedSession, "end")}
+                              className="text-[10px] text-red-400 hover:underline"
+                            >
+                              End Session
+                            </button>
+                          </>
+                        )}
+                        {session.status === "paused" && (
+                          <button
+                            onClick={() => handleSessionAction(selectedSession, "resume")}
+                            className="text-[10px] text-green-400 hover:underline"
+                          >
+                            Resume
+                          </button>
+                        )}
+                        <button
+                          onClick={() => exportSession(selectedSession)}
+                          className="text-[10px] text-[var(--color-text-muted)] hover:underline ml-auto"
+                        >
+                          Export JSON
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Exchanges */}
+                    <div>
+                      <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
+                        Exchanges ({exchanges.length})
+                      </h2>
+                      <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                        {exchanges.map((e) => {
+                          const agent = AGENTS[e.agent];
+                          return (
+                            <div
+                              key={e.id}
+                              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <span
+                                  className="text-xs font-semibold uppercase tracking-wider"
+                                  style={{ color: agent.color }}
+                                >
+                                  {agent.name}
+                                </span>
+                                <span className="text-[10px] text-[var(--color-text-muted)]">
+                                  #{e.exchange_number + 1}
+                                </span>
+                                <span className="text-[10px] text-[var(--color-text-muted)]">
+                                  {e.model}
+                                </span>
+                                <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
+                                  {new Date(e.created_at).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <p className="text-sm text-[var(--color-text)] leading-relaxed">
+                                {stripMarkdown(e.content)}
+                              </p>
+                              {/* Annotation input */}
+                              <div className="mt-3 flex gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="Add annotation..."
+                                  value={annotationNote}
+                                  onChange={(ev) => setAnnotationNote(ev.target.value)}
+                                  className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-[10px] text-[var(--color-text)] focus:outline-none"
+                                  onKeyDown={(ev) => {
+                                    if (ev.key === "Enter") addAnnotation(e.id);
+                                  }}
+                                />
+                                <button
+                                  onClick={() => addAnnotation(e.id)}
+                                  className="text-[10px] text-[var(--color-accent)] hover:underline"
+                                >
+                                  Annotate
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-[var(--color-text-muted)]">
-                Select a session to view exchanges
+                Select a session to view details
               </div>
             )}
           </div>
