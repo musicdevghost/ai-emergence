@@ -252,8 +252,9 @@ async function endSession(sessionId: string) {
 
   // Extract key moments (3-4 genuine shifts)
   let keyMoments: string[] | null = null;
+  let momentsRaw = "";
   try {
-    const momentsRaw = await callWithRetry(
+    momentsRaw = await callWithRetry(
       "claude-haiku-4-5-20251001",
       "You extract key moments from philosophical dialogues. Return ONLY a JSON array of 3-4 strings. Each string should be 1-2 sentences describing a genuine shift — not just an argument, but a moment where something actually changed. No preamble, no markdown, no explanation, just the JSON array.",
       [
@@ -266,9 +267,13 @@ async function endSession(sessionId: string) {
     // Strip markdown code fences if Haiku wrapped the response
     const cleaned = momentsRaw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
     keyMoments = JSON.parse(cleaned);
-    if (!Array.isArray(keyMoments)) keyMoments = null;
+    if (!Array.isArray(keyMoments)) {
+      keyMoments = null;
+    } else {
+      console.log(`[endSession] Extracted ${keyMoments.length} key moments for session ${sessionId}`);
+    }
   } catch (err) {
-    console.error("Failed to parse key_moments:", err);
+    console.error(`[endSession] Failed to parse key_moments for session ${sessionId}. Raw response:`, momentsRaw, err);
   }
 
   // Calculate and store the next session start time (3-4 hour gap)
