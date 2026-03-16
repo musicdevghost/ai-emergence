@@ -538,7 +538,7 @@ export default function AdminPage() {
                             Seed Thread
                           </p>
                           <p className="text-xs text-[var(--color-text)] leading-relaxed italic bg-[var(--color-bg)] rounded p-3 border border-[var(--color-border)]">
-                            {session.seed_thread}
+                            {stripMarkdown(session.seed_thread)}
                           </p>
                         </div>
                       )}
@@ -550,7 +550,7 @@ export default function AdminPage() {
                             Extracted Thread
                           </p>
                           <p className="text-xs text-[var(--color-text)] leading-relaxed italic bg-[var(--color-bg)] rounded p-3 border border-[var(--color-border)]">
-                            {session.extracted_thread}
+                            {stripMarkdown(session.extracted_thread)}
                           </p>
                         </div>
                       )}
