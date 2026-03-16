@@ -48,16 +48,22 @@ interface DailyViewStat {
 
 interface AnalyticsStats {
   totalViews: number;
-  todayViews: number;
-  weekViews: number;
   uniqueVisitors: number;
   liveViewers: number;
   viewsByPage: PageViewStat[];
   dailyViews: DailyViewStat[];
   totalSessions: number;
   totalExchanges: number;
-  sessionsToday: number;
 }
+
+type AnalyticsRange = "1d" | "7d" | "30d" | "all";
+
+const RANGE_LABELS: Record<AnalyticsRange, string> = {
+  "1d": "Today",
+  "7d": "7 Days",
+  "30d": "30 Days",
+  all: "All Time",
+};
 
 export default function AdminPage() {
   const [secret, setSecret] = useState("");
@@ -67,9 +73,17 @@ export default function AdminPage() {
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [annotationNote, setAnnotationNote] = useState("");
   const [analytics, setAnalytics] = useState<AnalyticsStats | null>(null);
+  const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>("7d");
   const [iterations, setIterations] = useState<Iteration[]>([]);
   const [showNewIteration, setShowNewIteration] = useState(false);
   const [newIteration, setNewIteration] = useState({ name: "", tagline: "", description: "" });
+
+  const fetchAnalytics = useCallback(async (range: AnalyticsRange) => {
+    try {
+      const res = await fetch(`/api/analytics/stats?range=${range}`);
+      if (res.ok) setAnalytics(await res.json());
+    } catch { /* ignore */ }
+  }, []);
 
   const fetchIterations = useCallback(async () => {
     const res = await fetch(`/api/admin/iterations?secret=${secret}`);
@@ -86,15 +100,11 @@ export default function AdminPage() {
       setSessions(data.sessions);
       setAuthenticated(true);
       fetchIterations();
-      // Fetch analytics
-      fetch("/api/analytics/stats")
-        .then((r) => r.json())
-        .then(setAnalytics)
-        .catch(() => {});
+      fetchAnalytics(analyticsRange);
     } else {
       alert("Invalid admin secret");
     }
-  }, [secret, fetchIterations]);
+  }, [secret, fetchIterations, fetchAnalytics, analyticsRange]);
 
   const fetchExchanges = useCallback(
     async (sessionId: string) => {
@@ -234,21 +244,42 @@ export default function AdminPage() {
         {/* Analytics */}
         {analytics && (
           <div className="space-y-4">
-            {/* Row 1: Key metrics */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <MetricCard label="Watching Now" value={analytics.liveViewers} live={analytics.liveViewers > 0} />
-              <MetricCard label="Views Today" value={analytics.todayViews} />
-              <MetricCard label="Views This Week" value={analytics.weekViews} />
-              <MetricCard label="Total Views" value={analytics.totalViews} />
-              <MetricCard label="Unique Visitors" value={analytics.uniqueVisitors} />
-              <MetricCard label="Total Sessions" value={analytics.totalSessions} />
+            {/* Range selector */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Analytics
+              </h2>
+              <div className="flex gap-1">
+                {(Object.keys(RANGE_LABELS) as AnalyticsRange[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => { setAnalyticsRange(r); fetchAnalytics(r); }}
+                    className={`px-3 py-1 text-[10px] rounded-full border transition-colors ${
+                      analyticsRange === r
+                        ? "border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10"
+                        : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                    }`}
+                  >
+                    {RANGE_LABELS[r]}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Row 2: 30-day sparkline */}
+            {/* Row 1: Key metrics */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <MetricCard label="Watching Now" value={analytics.liveViewers} live={analytics.liveViewers > 0} />
+              <MetricCard label="Views" value={analytics.totalViews} />
+              <MetricCard label="Unique Visitors" value={analytics.uniqueVisitors} />
+              <MetricCard label="Sessions" value={analytics.totalSessions} />
+              <MetricCard label="Exchanges" value={analytics.totalExchanges} />
+            </div>
+
+            {/* Row 2: Daily views chart */}
             {analytics.dailyViews.length > 0 && (
               <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
                 <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
-                  Views — Last 30 Days
+                  Daily Views
                 </p>
                 <DailyViewsChart data={analytics.dailyViews} />
               </div>
@@ -292,14 +323,6 @@ export default function AdminPage() {
                 </p>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-[var(--color-text-muted)]">Total Exchanges</span>
-                    <span className="text-sm font-light text-[var(--color-text)]">{analytics.totalExchanges.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-[var(--color-text-muted)]">Sessions Today</span>
-                    <span className="text-sm font-light text-[var(--color-text)]">{analytics.sessionsToday}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
                     <span className="text-xs text-[var(--color-text-muted)]">Avg Exchanges / Session</span>
                     <span className="text-sm font-light text-[var(--color-text)]">
                       {analytics.totalSessions > 0
@@ -308,10 +331,18 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-[var(--color-text-muted)]">Avg Views / Day (30d)</span>
+                    <span className="text-xs text-[var(--color-text-muted)]">Avg Views / Day</span>
                     <span className="text-sm font-light text-[var(--color-text)]">
                       {analytics.dailyViews.length > 0
                         ? (analytics.dailyViews.reduce((sum, d) => sum + parseInt(d.count), 0) / analytics.dailyViews.length).toFixed(1)
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[var(--color-text-muted)]">Views / Session</span>
+                    <span className="text-sm font-light text-[var(--color-text)]">
+                      {analytics.totalSessions > 0
+                        ? (analytics.totalViews / analytics.totalSessions).toFixed(1)
                         : "—"}
                     </span>
                   </div>
