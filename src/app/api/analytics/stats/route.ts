@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
-const RANGE_HOURS: Record<string, number> = {
-  "1d": 24,
-  "7d": 24 * 7,
-  "30d": 24 * 30,
-  all: 24 * 365 * 100,
+const RANGE_DAYS: Record<string, number> = {
+  "1d": 0,    // start of today
+  "7d": 6,    // 6 days back + today = 7 days
+  "30d": 29,  // 29 days back + today = 30 days
+  all: 365 * 100,
 };
 
 export async function GET(request: NextRequest) {
   try {
     const range = request.nextUrl.searchParams.get("range") || "all";
-    const hours = RANGE_HOURS[range] || RANGE_HOURS.all;
-    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const daysBack = RANGE_DAYS[range] ?? RANGE_DAYS.all;
+    // Align cutoff to start of day (midnight) so daily counts are always complete
+    const cutoffDate = new Date();
+    cutoffDate.setHours(0, 0, 0, 0);
+    cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+    const cutoff = cutoffDate.toISOString();
 
     const sql = getDb();
 
