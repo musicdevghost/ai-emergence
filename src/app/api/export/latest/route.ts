@@ -15,7 +15,11 @@ export async function GET() {
       size: blob.size,
       uploadedAt: blob.uploadedAt,
     });
-  } catch {
-    return NextResponse.json({ error: "Failed to check export" }, { status: 500 });
+  } catch (error) {
+    console.error("Export latest error:", error);
+    return NextResponse.json(
+      { error: "Failed to check export", detail: String(error) },
+      { status: 500 }
+    );
   }
 }
