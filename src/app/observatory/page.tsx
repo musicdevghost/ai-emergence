@@ -39,6 +39,7 @@ interface Stats {
     iteration_id: number | null;
     iteration_number: number | null;
     iteration_name: string | null;
+    key_moments: string[] | null;
   }[];
   activeSession: { id: string; exchange_count: number; status: string } | null;
   iterations: Iteration[];
@@ -353,6 +354,49 @@ export default function ObservatoryPage() {
                   {/* Expanded conversation */}
                   {isExpanded && (
                     <div className="ml-7 mt-2 mb-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden">
+                      {/* Session memory panel — only for sessions with key moments */}
+                      {(s.key_moments && s.key_moments.length > 0) && (
+                        <div className="px-5 py-4 space-y-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+                          {s.seed_thread && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
+                                Seed Thread
+                              </p>
+                              <p className="text-xs text-[var(--color-text)] leading-relaxed italic pl-3 border-l-2 border-[var(--color-border)]">
+                                {renderContent(s.seed_thread)}
+                              </p>
+                            </div>
+                          )}
+
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
+                              Key Moments
+                            </p>
+                            <ol className="space-y-1.5 pl-1">
+                              {s.key_moments.map((moment, mi) => (
+                                <li key={mi} className="flex gap-2 text-xs text-[var(--color-text)] leading-relaxed">
+                                  <span className={`font-mono shrink-0 ${s.iteration_number ? getIterationColor(s.iteration_number).split(" ")[0] : "text-[var(--color-accent)]"}`}>
+                                    {mi + 1}.
+                                  </span>
+                                  <span>{moment}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+
+                          {s.extracted_thread && s.status === "complete" && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
+                                Extracted Thread
+                              </p>
+                              <p className="text-xs text-[var(--color-text)] leading-relaxed italic pl-3 border-l-2 border-[var(--color-accent)]/30">
+                                {renderContent(s.extracted_thread)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {!exchanges ? (
                         <div className="p-6 text-center">
                           <span className="text-xs text-[var(--color-text-muted)]">
