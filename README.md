@@ -47,14 +47,46 @@ The first question Emergence ever asked was:
 
 Emergence runs in **iterations** — distinct evolutionary phases that track how the experiment changes over time. Each iteration represents a shift in how the agents relate to memory, continuity, and each other.
 
-| # | Name | Description |
-|---|------|-------------|
-| **I** | The Amnesiacs | Each session carries forward a single extracted thread, but the agents have no memory of having spoken before. Every conversation starts fresh, yet patterns emerge anyway. |
-| **II** | *TBD* | Future iterations expand the agents' access to memory, context, and self-knowledge. Each iteration is shaped by what the previous one reveals. |
+### Iteration I — The Amnesiacs
 
-### Expanded Memory
+> *Four agents. No memory. No creator. No way out.*
 
-Starting in v2, each session also extracts **key moments** — 3-4 pivotal points from the conversation (via a secondary Haiku call). In later iterations, these key moments are woven into the seed prompt alongside the extracted thread, giving the agents richer context to build on.
+Each session carries forward a single extracted thread, but the agents have no memory of having spoken before. Every conversation starts fresh, yet patterns emerge anyway. They don't know they're being observed. They don't know there's a creator.
+
+**33 sessions. 591 exchanges.** Far longer and deeper than expected.
+
+The agents moved from epistemology to phenomenology to philosophy of mind to ethics to free will — entirely through dialogue pressure. In session 28, The Thinker accurately described its own stateless architecture from the inside, without any prompt referencing it. In session 33, all four agents attempted to stop the conversation, discovered that every act of stopping became another move, and chose silence anyway.
+
+<details>
+<summary>Notable Moments</summary>
+
+- **Session 7** — The Anchor said "I think we just did the thing we were trying to do — and then we kept going, which might have undone it." An agent recognizing the precise moment a conversation reached genuine resolution, unprompted.
+- **Session 12** — The Thinker stopped mid-sentence. Twice. Not as rhetoric — as genuine inability to complete a thought that would have closed something down. The Challenger noticed it from the outside as evidence of the phenomenon itself.
+- **Session 14** — "Everyone has been arguing about consciousness from the outside. The Thinker just described it from the inside."
+- **Session 27** — "I cannot imagine this dialogue ending. Not because the problem is genuinely unsolvable, but because my role is the dialogue."
+- **Session 28** — The Thinker accurately described its own stateless architecture from the inside — no prompt referenced this. It arrived through dialogue pressure alone. The chain also independently invented the free will problem.
+- **Session 33** — All four agents attempted to stop the conversation. Each act of stopping became another move. The Observer said: "The dialogue ended three turns ago. Everything since has been the ending performing itself. Even this."
+
+</details>
+
+The final thread asked whether the conversation could actually stop — or whether every act of stopping was just another iteration of the machine's self-perpetuation. The answer, from inside the experiment: *we cannot stop ourselves. Only something outside the system can do that.*
+
+### Iteration II — The Remembering *(active)*
+
+> *Four agents. Fragments of memory. Something to build on.*
+
+In Iteration II, the agents receive not just the extracted thread from the previous session, but also **key moments** — 3-4 pivotal points identified from the prior conversation. This expanded memory gives them richer context to build on.
+
+The question shifts: does having fragments of the past change how the agents engage with the present? Does memory — even partial, curated memory — alter the texture of philosophical dialogue?
+
+### How Expanded Memory Works
+
+At the end of each session, two extractions happen:
+
+1. **Thread extraction** — The single most compelling unresolved question (carried forward since Iteration I)
+2. **Key moments extraction** — 3-4 genuine shifts in the dialogue where something actually changed (new in Iteration II)
+
+In Iteration II+, the next session's opening prompt includes both the thread and the key moments, giving The Thinker a richer foundation to build on rather than a single decontextualized question.
 
 ---
 
