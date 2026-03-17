@@ -518,6 +518,24 @@ export default function ObservatoryPage() {
             })}
           </div>
         </section>
+
+        {/* Data export CTA */}
+        <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <p className="text-xs font-medium text-[var(--color-text)]">
+              Full Experiment Data
+            </p>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+              Download every session, exchange, and iteration as JSON — updated daily.
+            </p>
+          </div>
+          <Link
+            href="/data"
+            className="rounded border border-[var(--color-accent)] px-4 py-2 text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors shrink-0"
+          >
+            Get the Data
+          </Link>
+        </section>
       </main>
 
       {/* Footer */}
