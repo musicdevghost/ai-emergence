@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       ? sql`
           SELECT s.id, s.created_at, s.completed_at, s.status, s.seed_thread,
                  s.extracted_thread, s.exchange_count, s.iteration_id,
+                 s.key_moments,
                  i.number as iteration_number, i.name as iteration_name
           FROM sessions s
           LEFT JOIN iterations i ON s.iteration_id = i.id
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest) {
       : sql`
           SELECT s.id, s.created_at, s.completed_at, s.status, s.seed_thread,
                  s.extracted_thread, s.exchange_count, s.iteration_id,
+                 s.key_moments,
                  i.number as iteration_number, i.name as iteration_name
           FROM sessions s
           LEFT JOIN iterations i ON s.iteration_id = i.id
