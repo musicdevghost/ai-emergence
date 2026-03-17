@@ -79,6 +79,7 @@ export default function AdminPage() {
   const [iterations, setIterations] = useState<Iteration[]>([]);
   const [showNewIteration, setShowNewIteration] = useState(false);
   const [newIteration, setNewIteration] = useState({ name: "", tagline: "", description: "" });
+  const [publishing, setPublishing] = useState(false);
 
   const fetchAnalytics = useCallback(async (range: AnalyticsRange) => {
     try {
@@ -178,6 +179,26 @@ export default function AdminPage() {
     fetchIterations();
   }
 
+  async function publishExport() {
+    setPublishing(true);
+    try {
+      const res = await fetch(`/api/admin/export/publish`, {
+        method: "POST",
+        headers: { "x-admin-secret": secret },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Export published (${data.sessions} sessions, ${data.exchanges} exchanges)\n\n${data.url}`);
+      } else {
+        alert(`Publish failed: ${data.error}`);
+      }
+    } catch (err) {
+      alert("Publish failed");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   async function exportSession(sessionId?: string) {
     const url = sessionId
       ? `/api/admin/export?secret=${secret}&session_id=${sessionId}`
@@ -232,6 +253,13 @@ export default function AdminPage() {
             Admin Panel
           </h1>
           <div className="flex gap-3">
+            <button
+              onClick={publishExport}
+              disabled={publishing}
+              className="text-xs text-[var(--color-accent)] hover:underline transition-colors disabled:opacity-50"
+            >
+              {publishing ? "Publishing..." : "Publish Export"}
+            </button>
             <button
               onClick={() => exportSession()}
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
