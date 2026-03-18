@@ -8,20 +8,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json(
+      { error: "Publish failed", detail: "BLOB_READ_WRITE_TOKEN is not set. Run `vercel env pull` locally or check Vercel project settings." },
+      { status: 500 }
+    );
+  }
+
   try {
     const sql = getDb();
 
     // Gather all data
     const [sessions, exchanges, iterations] = await Promise.all([
-      sql`SELECT id, created_at, completed_at, status, seed_thread, extracted_thread,
-                 exchange_count, is_baseline, iteration_id, key_moments
-          FROM sessions ORDER BY created_at ASC`,
-      sql`SELECT id, session_id, exchange_number, agent, model, content, skipped, created_at
-          FROM exchanges ORDER BY created_at ASC`,
-      sql`SELECT id, number, name, tagline, description, notable_moments, conclusion,
-                 started_at, ended_at
-          FROM iterations ORDER BY number ASC`,
+      sql`SELECT * FROM sessions ORDER BY created_at ASC`,
+      sql`SELECT * FROM exchanges ORDER BY created_at ASC`,
+      sql`SELECT * FROM iterations ORDER BY number ASC`,
     ]);
+
+    // Nest exchanges inside their sessions
+    const exchangesBySession: Record<string, typeof exchanges> = {};
+    for (const ex of exchanges) {
+      const sid = ex.session_id as string;
+      if (!exchangesBySession[sid]) exchangesBySession[sid] = [];
+      exchangesBySession[sid].push(ex);
+    }
+
+    const sessionsWithExchanges = sessions.map((s) => ({
+      ...s,
+      exchanges: exchangesBySession[s.id as string] ?? [],
+    }));
 
     const exportData = {
       meta: {
@@ -31,8 +46,7 @@ export async function POST(request: NextRequest) {
         totalIterations: iterations.length,
       },
       iterations,
-      sessions,
-      exchanges,
+      sessions: sessionsWithExchanges,
     };
 
     const json = JSON.stringify(exportData, null, 2);

@@ -190,7 +190,7 @@ export default function AdminPage() {
       if (res.ok) {
         alert(`Export published (${data.sessions} sessions, ${data.exchanges} exchanges)\n\n${data.url}`);
       } else {
-        alert(`Publish failed: ${data.error}`);
+        alert(`Publish failed: ${data.error}\n\n${data.detail || ""}`);
       }
     } catch (err) {
       alert("Publish failed");
