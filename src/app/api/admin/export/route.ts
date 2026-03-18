@@ -35,12 +35,33 @@ export async function GET(request: NextRequest) {
   }
 
   // Export all sessions
-  const sessions = await sql`SELECT * FROM sessions ORDER BY created_at ASC`;
-  const exchanges = await sql`SELECT * FROM exchanges ORDER BY created_at ASC`;
+  const [sessions, exchanges, iterations] = await Promise.all([
+    sql`SELECT * FROM sessions ORDER BY created_at ASC`,
+    sql`SELECT * FROM exchanges ORDER BY created_at ASC`,
+    sql`SELECT * FROM iterations ORDER BY number ASC`,
+  ]);
+
+  // Nest exchanges inside their sessions
+  const exchangesBySession: Record<string, typeof exchanges> = {};
+  for (const ex of exchanges) {
+    const sid = ex.session_id as string;
+    if (!exchangesBySession[sid]) exchangesBySession[sid] = [];
+    exchangesBySession[sid].push(ex);
+  }
+
+  const sessionsWithExchanges = sessions.map((s) => ({
+    ...s,
+    exchanges: exchangesBySession[s.id as string] ?? [],
+  }));
 
   return NextResponse.json({
-    sessions,
-    exchanges,
-    exportedAt: new Date().toISOString(),
+    meta: {
+      exportedAt: new Date().toISOString(),
+      totalSessions: sessions.length,
+      totalExchanges: exchanges.length,
+      totalIterations: iterations.length,
+    },
+    iterations,
+    sessions: sessionsWithExchanges,
   });
 }
