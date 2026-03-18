@@ -12,6 +12,7 @@ interface Exchange {
   exchange_number: number;
   agent: AgentRole;
   content: string;
+  skipped: boolean;
   created_at: string;
 }
 
@@ -61,11 +62,26 @@ export default function TheatrePage() {
     }
 
     isRevealing.current = true;
+
+    const next = pendingQueue.current[0];
+
+    // Skipped exchanges appear with a short delay, no typing indicator
+    if (next.skipped) {
+      revealTimer.current = setTimeout(() => {
+        pendingQueue.current.shift();
+        setNewExchangeIds(new Set([next.id]));
+        setVisibleExchanges((prev) => [...prev, next]);
+        setTimeout(() => setNewExchangeIds(new Set()), 1000);
+        revealNext();
+      }, 1500);
+      return;
+    }
+
     setShowTyping(true);
 
     const delay = randomDelay();
     revealTimer.current = setTimeout(() => {
-      const next = pendingQueue.current.shift()!;
+      pendingQueue.current.shift();
       setShowTyping(false);
       setNewExchangeIds(new Set([next.id]));
       setVisibleExchanges((prev) => [...prev, next]);
@@ -267,6 +283,7 @@ export default function TheatrePage() {
               exchangeNumber={exchange.exchange_number}
               exchangeId={exchange.id}
               isNew={newExchangeIds.has(exchange.id)}
+              skipped={exchange.skipped}
             />
           ))}
         </div>

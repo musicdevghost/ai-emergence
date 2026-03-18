@@ -9,6 +9,7 @@ interface ExchangeBubbleProps {
   exchangeNumber: number;
   exchangeId: string;
   isNew?: boolean;
+  skipped?: boolean;
 }
 
 /** Render basic markdown: **bold**, *italic*, and nested **bold with *italic* inside** */
@@ -83,8 +84,30 @@ export function ExchangeBubble({
   content,
   exchangeNumber,
   isNew = false,
+  skipped = false,
 }: ExchangeBubbleProps) {
   const config = AGENTS[agent];
+
+  if (skipped) {
+    return (
+      <div className={`group px-4 py-2 ${isNew ? "line-fade" : ""}`}>
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs font-semibold uppercase tracking-wider"
+            style={{ color: config.color }}
+          >
+            {config.name}
+          </span>
+          <span className="text-[10px] text-[var(--color-text-muted)]">
+            #{exchangeNumber + 1}
+          </span>
+          <span className="text-[10px] italic text-[var(--color-text-muted)] opacity-60">
+            chose silence
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
