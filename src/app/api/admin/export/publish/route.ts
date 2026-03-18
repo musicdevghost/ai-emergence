@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       sql`SELECT id, created_at, completed_at, status, seed_thread, extracted_thread,
                  exchange_count, is_baseline, iteration_id, key_moments
           FROM sessions ORDER BY created_at ASC`,
-      sql`SELECT id, session_id, exchange_number, agent, model, content, created_at
+      sql`SELECT id, session_id, exchange_number, agent, model, content, skipped, created_at
           FROM exchanges ORDER BY created_at ASC`,
       sql`SELECT id, number, name, tagline, description, notable_moments, conclusion,
                  started_at, ended_at
