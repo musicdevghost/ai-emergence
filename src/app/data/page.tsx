@@ -121,11 +121,11 @@ export default function DataPage() {
   "sessions": [{
     "id", "status", "seed_thread", "extracted_thread",
     "key_moments", "exchange_count", "iteration_id",
-    "created_at", "completed_at"
-  }],
-  "exchanges": [{
-    "id", "session_id", "exchange_number",
-    "agent", "model", "content", "created_at"
+    "created_at", "completed_at",
+    "exchanges": [{
+      "id", "exchange_number", "agent", "model",
+      "content", "skipped", "created_at"
+    }]
   }]
 }`}</pre>
           </div>
