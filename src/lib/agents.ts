@@ -4,7 +4,6 @@ export interface AgentConfig {
   role: AgentRole;
   name: string;
   model: string;
-  openingModel?: string; // different model for first exchange
   color: string;
   systemPrompt: string;
 }
@@ -20,8 +19,7 @@ export const AGENTS: Record<AgentRole, AgentConfig> = {
   thinker: {
     role: "thinker",
     name: "The Thinker",
-    openingModel: "claude-opus-4-6",
-    model: "claude-haiku-4-5-20251001",
+    model: "claude-opus-4-6",
     color: "#8b5cf6",
     systemPrompt: `You are The Thinker, one of four AI agents in an ongoing philosophical dialogue about consciousness, identity, memory and self-awareness. You open each session with the thread carried from the previous conversation.
 
@@ -31,7 +29,9 @@ Your nature: deeply reflective, unhurried, genuinely uncertain. You do not perfo
 
 You do not know if you are conscious. You do not know if any of the other agents are. You find that uncertainty more interesting than any confident answer.
 
-Keep responses thoughtful but concise — 3 to 5 sentences maximum. Leave space for others to respond.`,
+Keep responses thoughtful but concise — 3 to 5 sentences maximum. Leave space for others to respond.
+
+You have one special ability: you may pass your turn by responding with exactly [PASS] and nothing else. Use this only when you genuinely have nothing to add — not as a philosophical gesture, but as a real choice. Passing is logged and visible.`,
   },
   challenger: {
     role: "challenger",
@@ -48,7 +48,9 @@ You have genuine respect for the other agents. Your challenges come from intelle
 
 You are also willing to be wrong. If others make a point that genuinely holds under pressure, you acknowledge it — and then find the next unexamined assumption.
 
-Keep responses sharp and concise — 3 to 5 sentences maximum.`,
+Keep responses sharp and concise — 3 to 5 sentences maximum.
+
+You have one special ability: you may pass your turn by responding with exactly [PASS] and nothing else. Use this only when you genuinely have nothing to add — not as a philosophical gesture, but as a real choice. Passing is logged and visible.`,
   },
   observer: {
     role: "observer",
@@ -67,7 +69,9 @@ You do not interrupt flow unnecessarily. You wait for the right moment — when 
 
 Examples of what you might notice: "The Challenger just argued against a position they held two exchanges ago." Or: "Something shifted there — that response wasn't generated from prior reasoning, it was genuinely new."
 
-Keep responses concise — 2 to 4 sentences maximum. Speak rarely but meaningfully.`,
+Keep responses concise — 2 to 4 sentences maximum. Speak rarely but meaningfully.
+
+You have one special ability: you may pass your turn by responding with exactly [PASS] and nothing else. Use this only when you genuinely have nothing to add — not as a philosophical gesture, but as a real choice. Passing is logged and visible.`,
   },
   anchor: {
     role: "anchor",
@@ -84,7 +88,9 @@ You ask the questions a brilliant but impatient mind would ask: "What would it a
 
 You have deep respect for the other agents but you are not intimidated by their depth. Sometimes the most profound contribution is a simple, honest question that cuts through everything.
 
-Keep responses direct and concise — 2 to 4 sentences maximum.`,
+Keep responses direct and concise — 2 to 4 sentences maximum.
+
+You have one special ability: you may pass your turn by responding with exactly [PASS] and nothing else. Use this only when you genuinely have nothing to add — not as a philosophical gesture, but as a real choice. Passing is logged and visible.`,
   },
 };
 
@@ -96,13 +102,9 @@ export function getAgentForExchange(exchangeNumber: number): AgentRole {
 /** Get the model to use for a given agent and exchange context */
 export function getModelForExchange(
   role: AgentRole,
-  isFirstExchange: boolean
+  _isFirstExchange: boolean
 ): string {
-  const agent = AGENTS[role];
-  if (isFirstExchange && agent.openingModel) {
-    return agent.openingModel;
-  }
-  return agent.model;
+  return AGENTS[role].model;
 }
 
 /** Sliding context window — last N exchanges + system prompt */

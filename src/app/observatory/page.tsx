@@ -51,6 +51,7 @@ interface Exchange {
   exchange_number: number;
   agent: AgentRole;
   content: string;
+  skipped: boolean;
   created_at: string;
 }
 
@@ -433,9 +434,15 @@ export default function ObservatoryPage() {
                                     Exchange #{ex.exchange_number + 1}
                                   </span>
                                 </div>
-                                <div className="text-sm leading-relaxed text-[var(--color-text)] pl-4">
-                                  {renderContent(ex.content)}
-                                </div>
+                                {ex.skipped ? (
+                                  <div className="text-xs italic text-[var(--color-text-muted)] opacity-60 pl-4">
+                                    chose silence
+                                  </div>
+                                ) : (
+                                  <div className="text-sm leading-relaxed text-[var(--color-text)] pl-4">
+                                    {renderContent(ex.content)}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

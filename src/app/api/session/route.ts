@@ -32,7 +32,7 @@ export async function GET() {
     : null;
 
   const exchanges = await sql`
-    SELECT id, exchange_number, agent, content, created_at
+    SELECT id, exchange_number, agent, content, skipped, created_at
     FROM exchanges
     WHERE session_id = ${session.id}
     ORDER BY exchange_number ASC

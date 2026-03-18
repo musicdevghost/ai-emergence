@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const sql = getDb();
 
   const exchanges = await sql`
-    SELECT id, exchange_number, agent, content, created_at
+    SELECT id, exchange_number, agent, content, skipped, created_at
     FROM exchanges
     WHERE session_id = ${sessionId} AND exchange_number > ${after}
     ORDER BY exchange_number ASC

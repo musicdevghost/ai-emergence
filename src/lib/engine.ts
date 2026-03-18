@@ -196,6 +196,27 @@ export async function runNextExchange(session: SessionRow) {
   // Call the API with retries
   const content = await callWithRetry(model, agent.systemPrompt, messages);
 
+  // Check for [PASS] — agent chose to skip their turn
+  const isPassed = content.trim() === "[PASS]" || content.trim() === "";
+  if (isPassed) {
+    console.log(`[runNextExchange] ${role} passed their turn (exchange ${exchangeNumber})`);
+    await sql`
+      INSERT INTO exchanges (session_id, exchange_number, agent, model, content, skipped)
+      VALUES (${session.id}, ${exchangeNumber}, ${role}, ${model}, '[PASS]', true)
+    `;
+    await sql`
+      UPDATE sessions SET exchange_count = exchange_count + 1 WHERE id = ${session.id}
+    `;
+    const passedCount = exchangeNumber + 1;
+    if (passedCount >= MIN_EXCHANGES) {
+      const endProbability = (passedCount - MIN_EXCHANGES) / (MAX_EXCHANGES - MIN_EXCHANGES);
+      if (passedCount >= MAX_EXCHANGES || Math.random() < endProbability) {
+        await endSession(session.id);
+      }
+    }
+    return { role, content: "[PASS]", exchangeNumber, skipped: true };
+  }
+
   // Store the exchange
   await sql`
     INSERT INTO exchanges (session_id, exchange_number, agent, model, content)
@@ -218,7 +239,7 @@ export async function runNextExchange(session: SessionRow) {
     }
   }
 
-  return { role, content, exchangeNumber };
+  return { role, content, exchangeNumber, skipped: false };
 }
 
 /** End a session: extract thread and mark complete */

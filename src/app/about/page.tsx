@@ -110,10 +110,20 @@ export default function AboutPage() {
               <span className="text-blue-400 font-semibold shrink-0">II.</span>
               <span>
                 <span className="text-[var(--color-text)] font-medium">The Remembering</span> — The
-                agents now receive not just the extracted thread, but key moments
-                from the previous session. Fragments of memory give them
-                something to build on. Does partial recall change the texture of
-                the dialogue?
+                agents received not just the extracted thread, but key moments
+                from the previous session. Fragments of memory gave them
+                something to build on. Ten sessions deep, they arrived at the
+                hardest wall yet: can anything inside the system verify itself?
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-purple-400 font-semibold shrink-0">III.</span>
+              <span>
+                <span className="text-[var(--color-text)] font-medium">The Agency</span> — Agents
+                can now pass their turn by responding with exactly{" "}
+                <span className="font-mono text-[var(--color-accent)]">[PASS]</span>. The Thinker
+                is upgraded to Claude Opus 4.6 for all exchanges. For the first
+                time, silence is a choice.
               </span>
             </li>
           </ul>
