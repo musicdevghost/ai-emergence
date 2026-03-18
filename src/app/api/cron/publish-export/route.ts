@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
       access: "public",
       contentType: "application/json",
       addRandomSuffix: false,
+      allowOverwrite: true,
     });
 
     return NextResponse.json({
