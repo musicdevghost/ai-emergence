@@ -2,6 +2,18 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { AXON_AGENTS, type AxonRole } from "@/lib/axon-agents";
+import { renderContent } from "@/components/ExchangeBubble";
+
+/** Render markdown text with paragraph/line-break support */
+function renderMarkdown(text: string) {
+  const lines = text.split("\n");
+  return lines.map((line, i) => (
+    <span key={i}>
+      {renderContent(line)}
+      {i < lines.length - 1 && <br />}
+    </span>
+  ));
+}
 
 interface AxonExchange {
   agent: AxonRole;
@@ -412,8 +424,8 @@ function AxonBubble({ exchange }: { exchange: AxonExchange }) {
         className="mx-2 rounded-lg border px-4 py-3"
         style={{ borderColor: agent.color + "33" }}
       >
-        <p className="text-sm leading-relaxed text-[var(--color-text)] whitespace-pre-wrap">
-          {exchange.content}
+        <p className="text-sm leading-relaxed text-[var(--color-text)]">
+          {renderMarkdown(exchange.content)}
         </p>
       </div>
     </div>
@@ -512,8 +524,8 @@ function VerdictCard({
         <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
           {isExec ? "Answer" : "Finding"}
         </p>
-        <p className="text-sm leading-relaxed text-[var(--color-text)] whitespace-pre-wrap">
-          {content}
+        <p className="text-sm leading-relaxed text-[var(--color-text)]">
+          {renderMarkdown(content)}
         </p>
       </div>
 
