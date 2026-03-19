@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AXON_AGENTS, AXON_TURN_ORDER, type AxonRole } from "@/lib/axon-agents";
 import { renderContent } from "@/components/ExchangeBubble";
 
@@ -168,11 +168,23 @@ function renderMarkdown(text: string) {
   return nodes;
 }
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 interface AxonExchange {
   agent: AxonRole;
   content: string;
   exchange_number: number;
   skipped: boolean;
+  turn_number?: number;
+}
+
+interface CompletedTurn {
+  turnNumber: number;
+  userInput: string;
+  exchanges: AxonExchange[];
+  decision: "EXEC" | "PASS";
+  content: string;
+  elapsedSeconds: number | null;
 }
 
 type PageState = "gate" | "input" | "running" | "result";
@@ -189,10 +201,12 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
 const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"];
 
 const EXAMPLE_TASKS = [
-  "What is 1+1?",
-  "What is real?",
-  "Find patterns in Fibonacci stopping times",
+  "Analyse this contract",
+  "Debug my reasoning",
+  "Find the flaw in this argument",
 ];
+
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function AxonPage() {
   const [state, setState] = useState<PageState>("gate");
@@ -215,8 +229,16 @@ export default function AxonPage() {
   const [resultContent, setResultContent] = useState("");
   const [runError, setRunError] = useState("");
   const [reasoningCollapsed, setReasoningCollapsed] = useState(false);
-
   const [elapsedSeconds, setElapsedSeconds] = useState<number | null>(null);
+
+  // Conversation
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [currentTurnNumber, setCurrentTurnNumber] = useState(0);
+  const [completedTurns, setCompletedTurns] = useState<CompletedTurn[]>([]);
+  const [followUpInput, setFollowUpInput] = useState("");
+  const [continueLoading, setContinueLoading] = useState(false);
+  const [sessionStartTime] = useState(() => Date.now());
+  const [originalTask, setOriginalTask] = useState("");
 
   // Context state
   const [contextTab, setContextTab] = useState<ContextTab>("file");
@@ -232,15 +254,24 @@ export default function AxonPage() {
   const stopPolling = useRef(false);
   const runStartTime = useRef<number>(0);
 
-  // Check auth on mount
+  // Check auth on mount + check for ?session= URL param for restoration
   useEffect(() => {
     fetch("/api/axon/auth")
       .then((r) => r.json())
-      .then((data) => {
-        if (data.authenticated) setState("input");
+      .then(async (data) => {
+        if (data.authenticated) {
+          setState("input");
+          // Check for session param
+          const params = new URLSearchParams(window.location.search);
+          const sessionId = params.get("session");
+          if (sessionId) {
+            await restoreSession(sessionId);
+          }
+        }
       })
       .catch(() => {})
       .finally(() => setAuthChecked(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-scroll
@@ -253,6 +284,52 @@ export default function AxonPage() {
     return () => {
       stopPolling.current = true;
     };
+  }, []);
+
+  // Restore a session from URL param
+  const restoreSession = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch(`/api/axon/status?request_id=${sessionId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      // Only restore completed sessions
+      if (data.status !== "complete") return;
+
+      const prevTurns: CompletedTurn[] = (data.conversation_turns ?? []).map(
+        (t: { turn: number; user_input: string; verdict: { decision: "EXEC" | "PASS"; content: string } }) => ({
+          turnNumber: t.turn,
+          userInput: t.user_input,
+          exchanges: (data.exchanges as AxonExchange[]).filter(
+            (ex) => ex.turn_number === t.turn
+          ),
+          decision: t.verdict.decision,
+          content: t.verdict.content,
+          elapsedSeconds: null,
+        })
+      );
+
+      const currentTurn = data.current_turn ?? 0;
+      const currentExchanges = (data.exchanges as AxonExchange[]).filter(
+        (ex) => (ex.turn_number ?? 0) === currentTurn
+      );
+
+      const firstTask = data.input_text as string;
+      setOriginalTask(firstTask);
+      setRequestId(sessionId);
+      setCurrentTurnNumber(currentTurn);
+      setCompletedTurns(prevTurns);
+      setSubmittedTask(data.current_input ?? firstTask);
+      setVisibleExchanges(currentExchanges);
+      setDecision(data.decision);
+      setResultContent(data.content ?? "");
+      setState("result");
+
+      // Update URL without duplicate push
+      window.history.replaceState({}, "", `?session=${sessionId}`);
+    } catch {
+      // Silently fail — just start fresh
+    }
   }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -290,13 +367,13 @@ export default function AxonPage() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
-      // Strip data URL prefix — keep only the base64 part
       const base64 = result.split(",")[1];
       setContextFile({ name: file.name, type: file.type, data: base64, size: file.size });
     };
     reader.readAsDataURL(file);
   };
 
+  /** Start a brand-new session (turn 0) */
   const handleRun = async (task: string) => {
     if (!task.trim()) return;
     const taskText = task.trim();
@@ -308,6 +385,7 @@ export default function AxonPage() {
     setSubmittedContextText(ctxText);
 
     setSubmittedTask(taskText);
+    setOriginalTask(taskText);
     setTaskInput("");
     setVisibleExchanges([]);
     setDecision(null);
@@ -316,6 +394,10 @@ export default function AxonPage() {
     setShowTyping(false);
     setReasoningCollapsed(false);
     setElapsedSeconds(null);
+    setCompletedTurns([]);
+    setCurrentTurnNumber(0);
+    setFollowUpInput("");
+    setRequestId(null);
     stopPolling.current = false;
     runStartTime.current = Date.now();
 
@@ -331,7 +413,7 @@ export default function AxonPage() {
     if (ctxFile) body.context_file = { name: ctxFile.name, type: ctxFile.type, data: ctxFile.data };
 
     // Step 1: create the request
-    let requestId: string;
+    let newRequestId: string;
     try {
       const res = await fetch("/api/axon/run", {
         method: "POST",
@@ -341,7 +423,7 @@ export default function AxonPage() {
       if (res.status === 401) { setState("gate"); return; }
       if (!res.ok) { setRunError("Failed to start. Try again."); setState("input"); setTaskInput(taskText); return; }
       const data = await res.json();
-      requestId = data.requestId;
+      newRequestId = data.requestId;
     } catch {
       setRunError("Connection error. Try again.");
       setState("input");
@@ -349,7 +431,74 @@ export default function AxonPage() {
       return;
     }
 
-    // Step 2: poll — each call runs one exchange
+    setRequestId(newRequestId);
+
+    await pollUntilDone(newRequestId, taskText, 0);
+  };
+
+  /** Continue with a follow-up question (new turn) */
+  const handleContinue = async () => {
+    if (!followUpInput.trim() || !requestId) return;
+    const followUp = followUpInput.trim();
+
+    setContinueLoading(true);
+
+    // Snapshot the current turn into completedTurns
+    const snapshot: CompletedTurn = {
+      turnNumber: currentTurnNumber,
+      userInput: submittedTask,
+      exchanges: visibleExchanges,
+      decision: decision!,
+      content: resultContent,
+      elapsedSeconds,
+    };
+    setCompletedTurns((prev) => [...prev, snapshot]);
+
+    // Reset current turn state
+    setSubmittedTask(followUp);
+    setVisibleExchanges([]);
+    setDecision(null);
+    setResultContent("");
+    setShowTyping(false);
+    setReasoningCollapsed(false);
+    setElapsedSeconds(null);
+    setFollowUpInput("");
+    stopPolling.current = false;
+    runStartTime.current = Date.now();
+
+    let nextTurn: number;
+    try {
+      const res = await fetch("/api/axon/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request_id: requestId, input: followUp }),
+      });
+      if (!res.ok) {
+        setRunError("Failed to continue. Try again.");
+        setContinueLoading(false);
+        return;
+      }
+      const data = await res.json();
+      nextTurn = data.turnNumber as number;
+    } catch {
+      setRunError("Connection error. Try again.");
+      setContinueLoading(false);
+      return;
+    }
+
+    setCurrentTurnNumber(nextTurn);
+    setContinueLoading(false);
+    setState("running");
+
+    await pollUntilDone(requestId, followUp, nextTurn);
+  };
+
+  /** Core polling loop — runs one exchange at a time until done */
+  const pollUntilDone = async (
+    reqId: string,
+    taskText: string,
+    turnNumber: number
+  ) => {
     let exchangeCount = 0;
     while (!stopPolling.current) {
       const nextRole = AXON_TURN_ORDER[exchangeCount % AXON_TURN_ORDER.length];
@@ -364,7 +513,7 @@ export default function AxonPage() {
       };
 
       try {
-        const res = await fetch(`/api/axon/process?request_id=${requestId}`);
+        const res = await fetch(`/api/axon/process?request_id=${reqId}`);
         if (!res.ok) {
           setRunError("Engine error. Try again.");
           setState("input");
@@ -382,7 +531,7 @@ export default function AxonPage() {
       setShowTyping(false);
 
       if (data.exchange) {
-        setVisibleExchanges((prev) => [...prev, data.exchange!]);
+        setVisibleExchanges((prev) => [...prev, { ...data.exchange!, turn_number: turnNumber }]);
         exchangeCount++;
       }
 
@@ -391,6 +540,9 @@ export default function AxonPage() {
         setResultContent(data.content ?? "");
         setElapsedSeconds(Math.round((Date.now() - runStartTime.current) / 1000));
         setState("result");
+
+        // Set session URL after first verdict
+        window.history.replaceState({}, "", `?session=${reqId}`);
         break;
       }
     }
@@ -406,8 +558,18 @@ export default function AxonPage() {
     setElapsedSeconds(null);
     setSubmittedContextFile(null);
     setSubmittedContextText("");
+    setCompletedTurns([]);
+    setCurrentTurnNumber(0);
+    setFollowUpInput("");
+    setRequestId(null);
+    setOriginalTask("");
+    // Clear session from URL
+    window.history.replaceState({}, "", window.location.pathname);
     setState("input");
   };
+
+  // ─── Elapsed session time display ─────────────────────────────────────────
+  const sessionMinutes = Math.floor((Date.now() - sessionStartTime) / 60000);
 
   if (!authChecked) {
     return (
@@ -417,7 +579,7 @@ export default function AxonPage() {
     );
   }
 
-  // STATE 1 — Beta gate
+  // ─── STATE 1 — Beta gate ──────────────────────────────────────────────────
   if (state === "gate") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center px-6">
@@ -454,7 +616,7 @@ export default function AxonPage() {
     );
   }
 
-  // STATE 2 — Input form
+  // ─── STATE 2 — Input form ─────────────────────────────────────────────────
   if (state === "input") {
     return (
       <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
@@ -641,25 +803,64 @@ export default function AxonPage() {
     );
   }
 
-  // STATE 3 — Running + Result (shared layout)
+  // ─── STATES 3 & 4 — Running + Result (shared layout) ─────────────────────
+  const totalTurns = completedTurns.length + 1; // completed + current
+
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
       <header className="border-b border-[var(--color-border)] px-6 py-4">
-        <div className="mx-auto flex max-w-2xl items-baseline gap-3">
+        <div className="mx-auto flex max-w-2xl items-baseline gap-3 flex-wrap">
           <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--color-text)]">
             AXON
           </span>
-          <span className="text-[10px] text-[var(--color-text-muted)]">
-            EpistemicGate · Beta
-          </span>
+          {completedTurns.length > 0 ? (
+            <>
+              <span className="text-[10px] text-[var(--color-text-muted)]">
+                {totalTurns} turn{totalTurns !== 1 ? "s" : ""}
+              </span>
+              <span className="text-[10px] text-[var(--color-text-muted)] opacity-40">·</span>
+              <span className="text-[10px] text-[var(--color-text-muted)]">
+                Started {sessionMinutes > 0 ? `${sessionMinutes}m ago` : "just now"}
+              </span>
+              {originalTask && (
+                <>
+                  <span className="text-[10px] text-[var(--color-text-muted)] opacity-40">·</span>
+                  <span className="text-[10px] text-[var(--color-text-muted)] truncate max-w-[160px]">
+                    {originalTask}
+                  </span>
+                </>
+              )}
+            </>
+          ) : (
+            <span className="text-[10px] text-[var(--color-text-muted)]">
+              EpistemicGate · Beta
+            </span>
+          )}
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 space-y-4">
-        {/* Task */}
+
+        {/* ── Previous turns (collapsed cards) ── */}
+        {completedTurns.map((turn) => (
+          <PreviousTurnCard key={turn.turnNumber} turn={turn} />
+        ))}
+
+        {/* Turn divider — only shown when continuing */}
+        {completedTurns.length > 0 && (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-[var(--color-border)]" />
+            <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
+              Turn {currentTurnNumber + 1}
+            </span>
+            <div className="flex-1 border-t border-[var(--color-border)]" />
+          </div>
+        )}
+
+        {/* Current task */}
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
           <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
-            Task
+            {completedTurns.length > 0 ? "Follow-up" : "Task"}
           </p>
           <p className="text-sm text-[var(--color-text)]">{submittedTask}</p>
         </div>
@@ -696,16 +897,14 @@ export default function AxonPage() {
           </button>
         )}
 
-        {/* Exchange stream — hidden when collapsed */}
+        {/* Exchange stream */}
         {!reasoningCollapsed && (
           <>
             <div className="space-y-2">
               {visibleExchanges.map((exchange) => (
-                <AxonBubble key={exchange.exchange_number} exchange={exchange} />
+                <AxonBubble key={`${exchange.turn_number ?? 0}-${exchange.exchange_number}`} exchange={exchange} />
               ))}
             </div>
-
-            {/* Typing indicator — shows while LLM is actually thinking */}
             {showTyping && <AxonTypingIndicator agent={typingAgent} />}
           </>
         )}
@@ -720,20 +919,125 @@ export default function AxonPage() {
           />
         )}
 
-        {/* Run another */}
+        {/* ── Follow-up / continue section ── */}
         {state === "result" && decision && (
-          <div className="flex justify-center pt-4 pb-8">
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 border-t border-[var(--color-border)]" />
+              <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
+                Continue
+              </span>
+              <div className="flex-1 border-t border-[var(--color-border)]" />
+            </div>
+
+            <div className="flex gap-2">
+              <textarea
+                value={followUpInput}
+                onChange={(e) => setFollowUpInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    handleContinue();
+                  }
+                }}
+                placeholder="Ask a follow-up question..."
+                rows={2}
+                className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)] transition-colors resize-none"
+              />
+              <button
+                onClick={handleContinue}
+                disabled={!followUpInput.trim() || continueLoading}
+                className="rounded-lg border border-[var(--color-accent)] px-4 py-2.5 text-sm text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed self-end"
+              >
+                {continueLoading ? "..." : "→"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Session URL + start over */}
+        {state === "result" && decision && (
+          <div className="flex items-center justify-between pt-2 pb-8">
+            {requestId ? (
+              <span className="text-[10px] text-[var(--color-text-muted)] opacity-50 font-mono truncate max-w-[60%]">
+                session/{requestId.slice(0, 8)}
+              </span>
+            ) : (
+              <span />
+            )}
             <button
               onClick={handleRunAnother}
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
             >
-              ← Run another
+              ← New session
             </button>
           </div>
         )}
 
         <div ref={bottomRef} />
       </main>
+    </div>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function PreviousTurnCard({ turn }: { turn: CompletedTurn }) {
+  const [expanded, setExpanded] = useState(false);
+  const isExec = turn.decision === "EXEC";
+
+  return (
+    <div
+      className="rounded-lg border opacity-60 hover:opacity-80 transition-opacity"
+      style={{ borderColor: isExec ? "#2e7d6a55" : "#8a6a0055" }}
+    >
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+      >
+        <div
+          className="h-1.5 w-1.5 rounded-full shrink-0"
+          style={{ backgroundColor: isExec ? "#2e7d6a" : "#8a6a00" }}
+        />
+        <span className="text-[10px] uppercase tracking-wider font-semibold"
+          style={{ color: isExec ? "#2e7d6a" : "#8a6a00" }}>
+          Turn {turn.turnNumber + 1} · {turn.decision}
+        </span>
+        <span className="text-[10px] text-[var(--color-text-muted)] flex-1 truncate">
+          {turn.userInput}
+        </span>
+        {turn.elapsedSeconds && (
+          <span className="text-[10px] text-[var(--color-text-muted)] tabular-nums shrink-0">
+            {turn.elapsedSeconds}s
+          </span>
+        )}
+        <span
+          className="text-[10px] text-[var(--color-text-muted)] transition-transform duration-150 inline-block shrink-0"
+          style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+        >
+          ▾
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-[var(--color-border)] px-4 py-3 space-y-3">
+          <div className="space-y-2">
+            {turn.exchanges.map((ex) => (
+              <AxonBubble key={`prev-${turn.turnNumber}-${ex.exchange_number}`} exchange={ex} />
+            ))}
+          </div>
+          <div
+            className="rounded-lg border p-3 text-xs text-[var(--color-text)]"
+            style={{ borderColor: isExec ? "#2e7d6a33" : "#8a6a0033" }}
+          >
+            <p className="text-[10px] uppercase tracking-wider mb-1"
+              style={{ color: isExec ? "#2e7d6a" : "#8a6a00" }}>
+              {isExec ? "Answer" : "Finding"}
+            </p>
+            <div className="leading-relaxed">{renderMarkdown(turn.content)}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

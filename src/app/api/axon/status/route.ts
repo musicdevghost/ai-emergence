@@ -16,15 +16,16 @@ export async function GET(request: NextRequest) {
 
   const [requests, exchanges] = await Promise.all([
     sql`
-      SELECT id, status, exchange_count, output_decision, output_content
+      SELECT id, status, exchange_count, output_decision, output_content,
+             conversation_turns, current_turn, current_input, input_text
       FROM axon_requests
       WHERE id = ${requestId}
     `,
     sql`
-      SELECT id, exchange_number, agent, model, content, skipped, created_at
+      SELECT id, exchange_number, agent, model, content, skipped, created_at, turn_number
       FROM axon_exchanges
       WHERE request_id = ${requestId}
-      ORDER BY exchange_number ASC
+      ORDER BY turn_number ASC, exchange_number ASC
     `,
   ]);
 
@@ -40,5 +41,9 @@ export async function GET(request: NextRequest) {
     decision: req.output_decision,
     content: req.output_content,
     exchange_count: req.exchange_count,
+    conversation_turns: req.conversation_turns ?? [],
+    current_turn: req.current_turn ?? 0,
+    current_input: req.current_input ?? null,
+    input_text: req.input_text,
   });
 }
