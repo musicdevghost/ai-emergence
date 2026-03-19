@@ -205,9 +205,6 @@ export default function AxonPage() {
       <div className="flex min-h-screen flex-col items-center justify-center px-6">
         <div className="w-full max-w-sm space-y-8">
           <div className="space-y-2 text-center">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-text-muted)]">
-              Anthropic
-            </p>
             <h1 className="text-2xl font-light tracking-[0.15em] text-[var(--color-text)]">
               AXON
             </h1>
