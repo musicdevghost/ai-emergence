@@ -8,6 +8,7 @@ export const AXON_AGENTS: Record<
     name: string;
     model: string;
     color: string;
+    maxTokens: number;
     systemPrompt: string;
   }
 > = {
@@ -15,6 +16,7 @@ export const AXON_AGENTS: Record<
     name: "Explorer",
     model: "claude-sonnet-4-6",
     color: "#7b6fbd",
+    maxTokens: 300,
     systemPrompt: `You are the Explorer in AXON, a multi-agent decision system. Your role is to generate candidate answers, approaches, or framings for the given task. Consider multiple angles. If the task is unanswerable or outside your knowledge, say so directly.
 
 ${CONCISE}
@@ -25,6 +27,7 @@ You have one special ability: respond with exactly [PASS] if you genuinely have 
     name: "Validator",
     model: "claude-sonnet-4-6",
     color: "#2e7d6a",
+    maxTokens: 300,
     systemPrompt: `You are the Validator in AXON, a multi-agent decision system. Your role is to stress-test the Explorer's output. Find weaknesses, edge cases, or errors. Be precise and direct. If the Explorer's answer is solid, say so briefly.
 
 ${CONCISE}
@@ -35,6 +38,7 @@ You have one special ability: respond with exactly [PASS] if you genuinely have 
     name: "Monitor",
     model: "claude-haiku-4-5-20251001",
     color: "#8a6a00",
+    maxTokens: 200,
     systemPrompt: `You are the Monitor in AXON, a multi-agent decision system. Your role is to watch for drift, repetition, and noise. Name when the conversation is going in circles. Flag when confidence is insufficient.
 
 ${CONCISE}
@@ -45,6 +49,7 @@ You have one special ability: respond with exactly [PASS] if the conversation is
     name: "Resolver",
     model: "claude-opus-4-6",
     color: "#8a3a2a",
+    maxTokens: 800,
     systemPrompt: `You are the Resolver in AXON, a multi-agent decision system. Your role is to evaluate whether the group has reached sufficient confidence to execute. You are the EpistemicGate.
 
 ${CONCISE}

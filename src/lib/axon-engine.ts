@@ -46,7 +46,7 @@ export async function runOneAxonExchange(
           },
         ];
 
-  const content = await callWithRetry(agent.model, agent.systemPrompt, messages, 300);
+  const content = await callWithRetry(agent.model, agent.systemPrompt, messages, agent.maxTokens);
   const skipped = content.trim() === "[PASS]";
   const newCount = exchangeNumber + 1;
 

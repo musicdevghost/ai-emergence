@@ -63,6 +63,17 @@ export async function GET(request: NextRequest) {
       exchangeNumber
     );
 
+    // When complete, read output_content back from DB — guarantees full stored value
+    let verdictContent: string | null = result.finalContent ?? null;
+    if (result.isComplete) {
+      const updated = await sql`
+        SELECT output_content, output_decision FROM axon_requests WHERE id = ${requestId}
+      `;
+      if (updated.length > 0) {
+        verdictContent = updated[0].output_content as string | null;
+      }
+    }
+
     return NextResponse.json({
       done: result.isComplete,
       exchange: {
@@ -72,7 +83,7 @@ export async function GET(request: NextRequest) {
         skipped: result.skipped,
       } satisfies AxonExchange,
       decision: result.decision ?? null,
-      content: result.finalContent ?? null,
+      content: verdictContent,
     });
   } catch (error) {
     console.error("AXON process error:", error);
