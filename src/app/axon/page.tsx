@@ -201,6 +201,9 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
 const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"];
 
 const EXAMPLE_TASKS = [
+  "What is 1+1?",
+  "What is real?",
+  "Find patterns in Fibonacci stopping times",
   "Analyse this contract",
   "Debug my reasoning",
   "Find the flaw in this argument",
