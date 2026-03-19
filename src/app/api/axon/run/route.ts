@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { runAxon } from "@/lib/axon-engine";
 import { isAxonBeta } from "@/lib/auth";
-
-export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   if (!isAxonBeta(request)) {
@@ -26,19 +23,9 @@ export async function POST(request: NextRequest) {
 
   const requests = await sql`
     INSERT INTO axon_requests (input_text, status)
-    VALUES (${input}, 'running')
+    VALUES (${input}, 'pending')
     RETURNING id
   `;
-  const requestId = requests[0].id as string;
 
-  try {
-    const result = await runAxon(requestId, input);
-    return NextResponse.json({ requestId, ...result });
-  } catch (error) {
-    console.error("AXON engine error:", error);
-    await sql`
-      UPDATE axon_requests SET status = 'error' WHERE id = ${requestId}
-    `;
-    return NextResponse.json({ error: "Engine error" }, { status: 500 });
-  }
+  return NextResponse.json({ requestId: requests[0].id });
 }

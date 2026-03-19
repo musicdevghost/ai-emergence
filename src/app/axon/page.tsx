@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { AXON_AGENTS, type AxonRole } from "@/lib/axon-agents";
+import { useEffect, useRef, useState } from "react";
+import { AXON_AGENTS, AXON_TURN_ORDER, type AxonRole } from "@/lib/axon-agents";
 import { renderContent } from "@/components/ExchangeBubble";
 
 /** Render markdown text with paragraph/line-break support */
@@ -30,36 +30,29 @@ const EXAMPLE_TASKS = [
   "Find patterns in Fibonacci stopping times",
 ];
 
-const REVEAL_DELAY_MIN = 2500;
-const REVEAL_DELAY_MAX = 5000;
-
-function randomDelay() {
-  return REVEAL_DELAY_MIN + Math.random() * (REVEAL_DELAY_MAX - REVEAL_DELAY_MIN);
-}
-
 export default function AxonPage() {
   const [state, setState] = useState<PageState>("gate");
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Gate state
+  // Gate
   const [tokenInput, setTokenInput] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
-  // Input state
+  // Input
   const [taskInput, setTaskInput] = useState("");
 
-  // Running + result state
-  const [allExchanges, setAllExchanges] = useState<AxonExchange[]>([]);
+  // Running / result
+  const [submittedTask, setSubmittedTask] = useState("");
   const [visibleExchanges, setVisibleExchanges] = useState<AxonExchange[]>([]);
+  const [showTyping, setShowTyping] = useState(false);
+  const [typingAgent, setTypingAgent] = useState<AxonRole>("explorer");
   const [decision, setDecision] = useState<"EXEC" | "PASS" | null>(null);
   const [resultContent, setResultContent] = useState("");
-  const [showTyping, setShowTyping] = useState(false);
-  const [submittedTask, setSubmittedTask] = useState("");
+  const [runError, setRunError] = useState("");
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  const revealTimer = useRef<NodeJS.Timeout | null>(null);
-  const revealIndex = useRef(0);
+  const stopPolling = useRef(false);
 
   // Check auth on mount
   useEffect(() => {
@@ -77,33 +70,11 @@ export default function AxonPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleExchanges.length, showTyping, decision]);
 
-  // Reveal exchanges one by one
-  const revealNext = useCallback((exchanges: AxonExchange[]) => {
-    const idx = revealIndex.current;
-    if (idx >= exchanges.length) {
-      setShowTyping(false);
-      return;
-    }
-
-    const next = exchanges[idx];
-
-    if (next.skipped) {
-      revealTimer.current = setTimeout(() => {
-        revealIndex.current = idx + 1;
-        setVisibleExchanges((prev) => [...prev, next]);
-        revealNext(exchanges);
-      }, 800);
-      return;
-    }
-
-    setShowTyping(true);
-    const delay = randomDelay();
-    revealTimer.current = setTimeout(() => {
-      revealIndex.current = idx + 1;
-      setShowTyping(false);
-      setVisibleExchanges((prev) => [...prev, next]);
-      revealNext(exchanges);
-    }, delay);
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopPolling.current = true;
+    };
   }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -130,61 +101,96 @@ export default function AxonPage() {
 
   const handleRun = async (task: string) => {
     if (!task.trim()) return;
-
     const taskText = task.trim();
+
     setSubmittedTask(taskText);
     setTaskInput("");
-    setAllExchanges([]);
     setVisibleExchanges([]);
     setDecision(null);
     setResultContent("");
-    setShowTyping(true);
-    revealIndex.current = 0;
-    if (revealTimer.current) clearTimeout(revealTimer.current);
+    setRunError("");
+    setShowTyping(false);
+    stopPolling.current = false;
 
     setState("running");
 
+    // Step 1: create the request
+    let requestId: string;
     try {
       const res = await fetch("/api/axon/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input: taskText }),
       });
+      if (res.status === 401) { setState("gate"); return; }
+      if (!res.ok) { setRunError("Failed to start. Try again."); setState("input"); setTaskInput(taskText); return; }
+      const data = await res.json();
+      requestId = data.requestId;
+    } catch {
+      setRunError("Connection error. Try again.");
+      setState("input");
+      setTaskInput(taskText);
+      return;
+    }
 
-      if (res.status === 401) {
-        setState("gate");
-        return;
-      }
+    // Step 2: poll — each call runs one exchange
+    let exchangeCount = 0;
+    while (!stopPolling.current) {
+      const nextRole = AXON_TURN_ORDER[exchangeCount % AXON_TURN_ORDER.length];
+      setTypingAgent(nextRole);
+      setShowTyping(true);
 
-      if (!res.ok) {
+      let data: {
+        done: boolean;
+        exchange?: AxonExchange;
+        decision?: "EXEC" | "PASS";
+        content?: string;
+      };
+
+      try {
+        const res = await fetch("/api/axon/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ request_id: requestId }),
+        });
+        if (!res.ok) {
+          setRunError("Engine error. Try again.");
+          setState("input");
+          setTaskInput(taskText);
+          return;
+        }
+        data = await res.json();
+      } catch {
+        setRunError("Connection lost. Try again.");
         setState("input");
         setTaskInput(taskText);
         return;
       }
 
-      const data = await res.json();
-      const exchanges: AxonExchange[] = data.exchanges || [];
-      setAllExchanges(exchanges);
-      setDecision(data.decision);
-      setResultContent(data.content);
       setShowTyping(false);
 
-      // Start revealing exchanges with animation
-      setState("result");
-      revealIndex.current = 0;
-      setVisibleExchanges([]);
-      revealNext(exchanges);
-    } catch {
-      setState("input");
-      setTaskInput(taskText);
+      if (data.exchange) {
+        // Brief pause for the reveal animation
+        await new Promise((r) => setTimeout(r, 300));
+        setVisibleExchanges((prev) => [...prev, data.exchange!]);
+        exchangeCount++;
+      }
+
+      if (data.done) {
+        setDecision(data.decision ?? null);
+        setResultContent(data.content ?? "");
+        setState("result");
+        break;
+      }
+
+      // Tiny gap before next exchange
+      await new Promise((r) => setTimeout(r, 400));
     }
   };
 
   const handleRunAnother = () => {
-    if (revealTimer.current) clearTimeout(revealTimer.current);
-    revealIndex.current = 0;
+    stopPolling.current = true;
     setVisibleExchanges([]);
-    setAllExchanges([]);
     setDecision(null);
     setResultContent("");
     setShowTyping(false);
@@ -222,9 +228,7 @@ export default function AxonPage() {
               className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)] transition-colors"
               autoFocus
             />
-            {authError && (
-              <p className="text-xs text-red-400">{authError}</p>
-            )}
+            {authError && <p className="text-xs text-red-400">{authError}</p>}
             <button
               type="submit"
               disabled={authLoading || !tokenInput}
@@ -262,6 +266,10 @@ export default function AxonPage() {
               AXON reasons until it reaches a decision or admits it doesn&apos;t know
             </p>
           </div>
+
+          {runError && (
+            <p className="text-xs text-red-400">{runError}</p>
+          )}
 
           <form
             onSubmit={(e) => {
@@ -311,20 +319,7 @@ export default function AxonPage() {
     );
   }
 
-  // STATE 3 — Running + Result
-  const isRunning = state === "running";
-  const nextAgent: AxonRole =
-    visibleExchanges.length > 0
-      ? (["explorer", "validator", "monitor", "resolver"][
-          visibleExchanges.length % 4
-        ] as AxonRole)
-      : "explorer";
-
-  const allRevealed =
-    !isRunning &&
-    !showTyping &&
-    visibleExchanges.length === allExchanges.length;
-
+  // STATE 3 — Running + Result (shared layout)
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
       <header className="border-b border-[var(--color-border)] px-6 py-4">
@@ -339,7 +334,7 @@ export default function AxonPage() {
       </header>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 space-y-6">
-        {/* Task display */}
+        {/* Task */}
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
           <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
             Task
@@ -347,29 +342,24 @@ export default function AxonPage() {
           <p className="text-sm text-[var(--color-text)]">{submittedTask}</p>
         </div>
 
-        {/* Exchanges */}
+        {/* Exchange stream */}
         <div className="space-y-2">
           {visibleExchanges.map((exchange) => (
             <AxonBubble key={exchange.exchange_number} exchange={exchange} />
           ))}
         </div>
 
-        {/* Typing indicator */}
-        {showTyping && (
-          <AxonTypingIndicator
-            agent={isRunning ? "explorer" : nextAgent}
-            isRunning={isRunning}
-          />
-        )}
+        {/* Typing indicator — shows while LLM is actually thinking */}
+        {showTyping && <AxonTypingIndicator agent={typingAgent} />}
 
-        {/* Verdict card */}
-        {allRevealed && decision && (
+        {/* Verdict */}
+        {state === "result" && decision && (
           <VerdictCard decision={decision} content={resultContent} />
         )}
 
         {/* Run another */}
-        {allRevealed && decision && (
-          <div className="flex justify-center pt-4">
+        {state === "result" && decision && (
+          <div className="flex justify-center pt-4 pb-8">
             <button
               onClick={handleRunAnother}
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
@@ -429,36 +419,8 @@ function AxonBubble({ exchange }: { exchange: AxonExchange }) {
   );
 }
 
-function AxonTypingIndicator({
-  agent,
-  isRunning,
-}: {
-  agent: AxonRole;
-  isRunning: boolean;
-}) {
+function AxonTypingIndicator({ agent }: { agent: AxonRole }) {
   const agentInfo = AXON_AGENTS[agent];
-
-  if (isRunning) {
-    return (
-      <div className="flex items-center gap-3 px-2 py-3">
-        <div className="flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="h-1.5 w-1.5 rounded-full animate-pulse"
-              style={{
-                backgroundColor: "var(--color-text-muted)",
-                animationDelay: `${i * 150}ms`,
-              }}
-            />
-          ))}
-        </div>
-        <span className="text-xs text-[var(--color-text-muted)]">
-          AXON is reasoning...
-        </span>
-      </div>
-    );
-  }
 
   return (
     <div className="flex items-center gap-2 px-2 py-2">

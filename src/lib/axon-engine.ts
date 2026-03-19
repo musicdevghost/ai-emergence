@@ -2,8 +2,7 @@ import { getDb } from "./db";
 import { callWithRetry } from "./claude";
 import { AXON_AGENTS, AXON_TURN_ORDER, type AxonRole } from "./axon-agents";
 
-const MIN_EXCHANGES = 4;
-const MAX_EXCHANGES = 12;
+export const MAX_EXCHANGES = 12;
 
 export interface AxonExchange {
   agent: AxonRole;
@@ -12,105 +11,105 @@ export interface AxonExchange {
   skipped: boolean;
 }
 
-export async function runAxon(
-  requestId: string,
-  inputText: string
-): Promise<{
-  decision: "EXEC" | "PASS";
+export interface OneExchangeResult {
+  role: AxonRole;
   content: string;
-  exchanges: AxonExchange[];
-}> {
+  skipped: boolean;
+  isComplete: boolean;
+  decision?: "EXEC" | "PASS";
+  finalContent?: string;
+}
+
+/** Run a single AXON exchange and persist it. Called once per process request. */
+export async function runOneAxonExchange(
+  requestId: string,
+  inputText: string,
+  previousExchanges: Array<{ agent: AxonRole; content: string }>,
+  exchangeNumber: number
+): Promise<OneExchangeResult> {
   const sql = getDb();
-  const exchanges: AxonExchange[] = [];
+  const role = AXON_TURN_ORDER[exchangeNumber % AXON_TURN_ORDER.length];
+  const agent = AXON_AGENTS[role];
 
-  for (let i = 0; i < MAX_EXCHANGES; i++) {
-    const role = AXON_TURN_ORDER[i % AXON_TURN_ORDER.length];
-    const agent = AXON_AGENTS[role];
+  // Build context from previous exchanges
+  const history = previousExchanges
+    .map((ex) => `[${AXON_AGENTS[ex.agent].name}]: ${ex.content}`)
+    .join("\n\n");
 
-    // Build context from previous exchanges
-    const history = exchanges
-      .map(
-        (ex) =>
-          `[${AXON_AGENTS[ex.agent as AxonRole].name}]: ${ex.content}`
-      )
-      .join("\n\n");
+  const messages =
+    exchangeNumber === 0
+      ? [{ role: "user" as const, content: `Task: ${inputText}` }]
+      : [
+          {
+            role: "user" as const,
+            content: `Task: ${inputText}\n\n${history}\n\nYour turn.`,
+          },
+        ];
 
-    const messages =
-      i === 0
-        ? [{ role: "user" as const, content: `Task: ${inputText}` }]
-        : [
-            {
-              role: "user" as const,
-              content: `Task: ${inputText}\n\n${history}\n\nYour turn.`,
-            },
-          ];
+  const content = await callWithRetry(agent.model, agent.systemPrompt, messages, 512);
+  const skipped = content.trim() === "[PASS]";
+  const newCount = exchangeNumber + 1;
 
-    const content = await callWithRetry(agent.model, agent.systemPrompt, messages, 512);
+  // Persist the exchange
+  await sql`
+    INSERT INTO axon_exchanges (request_id, exchange_number, agent, model, content, skipped)
+    VALUES (${requestId}, ${exchangeNumber}, ${role}, ${agent.model}, ${content}, ${skipped})
+  `;
 
-    const skipped = content.trim() === "[PASS]";
-
-    // Store exchange
-    await sql`
-      INSERT INTO axon_exchanges (request_id, exchange_number, agent, model, content, skipped)
-      VALUES (${requestId}, ${i}, ${role}, ${agent.model}, ${content}, ${skipped})
-    `;
-
-    await sql`
-      UPDATE axon_requests SET exchange_count = ${i + 1} WHERE id = ${requestId}
-    `;
-
-    exchanges.push({ agent: role, content, exchange_number: i, skipped });
-
-    // Check for forced verdict from Resolver
-    if (role === "resolver" && !skipped) {
-      if (content.includes("VERDICT: EXEC")) {
-        const answer = content.split("ANSWER:")[1]?.trim() || content;
-        await sql`
-          UPDATE axon_requests SET
-            status = 'complete',
-            output_decision = 'EXEC',
-            output_content = ${answer},
-            confidence_level = 'high',
-            completed_at = now()
-          WHERE id = ${requestId}
-        `;
-        return { decision: "EXEC", content: answer, exchanges };
-      }
-      if (content.includes("VERDICT: PASS")) {
-        const finding = content.split("FINDING:")[1]?.trim() || content;
-        await sql`
-          UPDATE axon_requests SET
-            status = 'complete',
-            output_decision = 'PASS',
-            output_content = ${finding},
-            confidence_level = 'low',
-            completed_at = now()
-          WHERE id = ${requestId}
-        `;
-        return { decision: "PASS", content: finding, exchanges };
-      }
+  // Check for Resolver verdict
+  if (role === "resolver" && !skipped) {
+    if (content.includes("VERDICT: EXEC")) {
+      const answer = content.split("ANSWER:")[1]?.trim() || content;
+      await sql`
+        UPDATE axon_requests SET
+          exchange_count = ${newCount},
+          status = 'complete',
+          output_decision = 'EXEC',
+          output_content = ${answer},
+          confidence_level = 'high',
+          completed_at = now()
+        WHERE id = ${requestId}
+      `;
+      return { role, content, skipped, isComplete: true, decision: "EXEC", finalContent: answer };
     }
-
-    // Allow early exit after MIN_EXCHANGES if Resolver gave a clear answer
-    if (i >= MIN_EXCHANGES - 1 && role === "resolver" && !skipped) {
-      // Already handled VERDICT: EXEC/PASS above; if resolver spoke without verdict,
-      // continue to let it refine further
+    if (content.includes("VERDICT: PASS")) {
+      const finding = content.split("FINDING:")[1]?.trim() || content;
+      await sql`
+        UPDATE axon_requests SET
+          exchange_count = ${newCount},
+          status = 'complete',
+          output_decision = 'PASS',
+          output_content = ${finding},
+          confidence_level = 'low',
+          completed_at = now()
+        WHERE id = ${requestId}
+      `;
+      return { role, content, skipped, isComplete: true, decision: "PASS", finalContent: finding };
     }
   }
 
-  // Force PASS if max exchanges reached without a verdict
-  const lastContent =
-    exchanges[exchanges.length - 1]?.content || "Max reasoning depth reached.";
+  // Max exchanges reached — force PASS
+  if (newCount >= MAX_EXCHANGES) {
+    await sql`
+      UPDATE axon_requests SET
+        exchange_count = ${newCount},
+        status = 'complete',
+        output_decision = 'PASS',
+        output_content = ${content},
+        confidence_level = 'low',
+        completed_at = now()
+      WHERE id = ${requestId}
+    `;
+    return { role, content, skipped, isComplete: true, decision: "PASS", finalContent: content };
+  }
 
+  // Still running
   await sql`
     UPDATE axon_requests SET
-      status = 'complete',
-      output_decision = 'PASS',
-      output_content = ${lastContent},
-      confidence_level = 'low',
-      completed_at = now()
+      exchange_count = ${newCount},
+      status = 'running'
     WHERE id = ${requestId}
   `;
 
-  return { decision: "PASS", content: lastContent, exchanges };
+  return { role, content, skipped, isComplete: false };
 }
