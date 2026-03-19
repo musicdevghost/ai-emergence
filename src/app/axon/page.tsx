@@ -558,6 +558,7 @@ export default function AxonPage() {
 
 function AxonBubble({ exchange }: { exchange: AxonExchange }) {
   const agent = AXON_AGENTS[exchange.agent];
+  const [expanded, setExpanded] = useState(false);
 
   if (exchange.skipped) {
     return (
@@ -577,7 +578,10 @@ function AxonBubble({ exchange }: { exchange: AxonExchange }) {
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2 px-2">
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="flex w-full items-center gap-2 px-2 py-1 rounded hover:bg-[var(--color-surface)] transition-colors text-left"
+      >
         <span
           className="text-[10px] font-semibold uppercase tracking-wider"
           style={{ color: agent.color }}
@@ -587,15 +591,23 @@ function AxonBubble({ exchange }: { exchange: AxonExchange }) {
         <span className="text-[10px] text-[var(--color-text-muted)]">
           #{exchange.exchange_number + 1}
         </span>
-      </div>
-      <div
-        className="mx-2 rounded-lg border px-4 py-3"
-        style={{ borderColor: agent.color + "33" }}
-      >
-        <p className="text-sm leading-relaxed text-[var(--color-text)]">
-          {renderMarkdown(exchange.content)}
-        </p>
-      </div>
+        <span
+          className="ml-auto text-[10px] text-[var(--color-text-muted)] transition-transform duration-150 inline-block"
+          style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+        >
+          ▾
+        </span>
+      </button>
+      {expanded && (
+        <div
+          className="mx-2 rounded-lg border px-4 py-3"
+          style={{ borderColor: agent.color + "33" }}
+        >
+          <p className="text-sm leading-relaxed text-[var(--color-text)]">
+            {renderMarkdown(exchange.content)}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
