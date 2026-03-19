@@ -326,8 +326,6 @@ export default function AxonPage() {
       setShowTyping(false);
 
       if (data.exchange) {
-        // Brief pause for the reveal animation
-        await new Promise((r) => setTimeout(r, 300));
         setVisibleExchanges((prev) => [...prev, data.exchange!]);
         exchangeCount++;
       }
@@ -339,9 +337,6 @@ export default function AxonPage() {
         setState("result");
         break;
       }
-
-      // Tiny gap before next exchange
-      await new Promise((r) => setTimeout(r, 400));
     }
   };
 
