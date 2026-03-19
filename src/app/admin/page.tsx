@@ -278,6 +278,23 @@ export default function AdminPage() {
     a.click();
   }
 
+  async function exportAxon(requestId?: string) {
+    const url = requestId
+      ? `/api/admin/axon/export?secret=${secret}&request_id=${requestId}`
+      : `/api/admin/axon/export?secret=${secret}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = requestId
+      ? `axon-request-${requestId.slice(0, 8)}.json`
+      : "axon-export-all.json";
+    a.click();
+  }
+
   // Login screen
   if (!authenticated) {
     return (
@@ -771,19 +788,27 @@ export default function AdminPage() {
 
         {/* AXON Section */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
               AXON · EpistemicGate {axonRequests.length > 0 && `(${axonRequests.length})`}
             </h2>
-            <button
-              onClick={() => {
-                setShowAxon(!showAxon);
-                if (!showAxon && axonRequests.length === 0) fetchAxonRequests();
-              }}
-              className="text-[10px] text-[var(--color-accent)] hover:underline"
-            >
-              {showAxon ? "Collapse" : "Expand"}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => exportAxon()}
+                className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+              >
+                Export All (JSON)
+              </button>
+              <button
+                onClick={() => {
+                  setShowAxon(!showAxon);
+                  if (!showAxon && axonRequests.length === 0) fetchAxonRequests();
+                }}
+                className="text-[10px] text-[var(--color-accent)] hover:underline"
+              >
+                {showAxon ? "Collapse" : "Expand"}
+              </button>
+            </div>
           </div>
 
           {showAxon && (
@@ -949,9 +974,17 @@ export default function AdminPage() {
 
                       {/* Exchanges */}
                       <div>
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
-                          Exchanges ({axonExchanges.length})
-                        </h3>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                            Exchanges ({axonExchanges.length})
+                          </h3>
+                          <button
+                            onClick={() => exportAxon(selectedAxonRequest)}
+                            className="text-[10px] text-[var(--color-text-muted)] hover:underline"
+                          >
+                            Export JSON
+                          </button>
+                        </div>
                         <div className="space-y-2 max-h-[60vh] overflow-y-auto">
                           {axonExchanges.map((e) => {
                             const agentDef = AXON_AGENTS[e.agent];
