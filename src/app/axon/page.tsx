@@ -1,18 +1,57 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AXON_AGENTS, AXON_TURN_ORDER, type AxonRole } from "@/lib/axon-agents";
 import { renderContent } from "@/components/ExchangeBubble";
 
-/** Render markdown text with paragraph/line-break support */
+/** Render markdown — handles headings, lists, rules, and inline bold/italic */
 function renderMarkdown(text: string) {
   const lines = text.split("\n");
-  return lines.map((line, i) => (
-    <span key={i}>
-      {renderContent(line)}
-      {i < lines.length - 1 && <br />}
-    </span>
-  ));
+  const nodes: React.ReactNode[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // ## Heading
+    if (/^#{1,3} /.test(line)) {
+      const content = line.replace(/^#{1,3} /, "");
+      nodes.push(
+        <p key={i} className="font-semibold text-[var(--color-text)] mt-3 mb-0.5">
+          {renderContent(content)}
+        </p>
+      );
+    }
+    // --- horizontal rule
+    else if (/^[-*_]{3,}$/.test(line.trim())) {
+      nodes.push(
+        <hr key={i} className="border-[var(--color-border)] my-3" />
+      );
+    }
+    // - list item
+    else if (/^[-*] /.test(line)) {
+      const content = line.replace(/^[-*] /, "");
+      nodes.push(
+        <div key={i} className="flex gap-2 leading-relaxed">
+          <span className="text-[var(--color-text-muted)] shrink-0 select-none">–</span>
+          <span>{renderContent(content)}</span>
+        </div>
+      );
+    }
+    // Empty line — paragraph break
+    else if (line.trim() === "") {
+      nodes.push(<div key={i} className="h-2" />);
+    }
+    // Regular text
+    else {
+      nodes.push(
+        <span key={i} className="block leading-relaxed">
+          {renderContent(line)}
+        </span>
+      );
+    }
+  }
+
+  return nodes;
 }
 
 interface AxonExchange {
