@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { AGENTS, type AgentRole } from "@/lib/agents";
-import { AXON_AGENTS, type AxonRole } from "@/lib/axon-agents";
 import { stripMarkdown } from "@/lib/markdown";
+import Link from "next/link";
 
 interface Session {
   id: string;
@@ -25,37 +25,6 @@ interface Exchange {
   model: string;
   content: string;
   created_at: string;
-}
-
-interface AxonRequest {
-  id: string;
-  created_at: string;
-  completed_at: string | null;
-  status: string;
-  input_text: string;
-  output_decision: string | null;
-  output_content: string | null;
-  confidence_level: string | null;
-  exchange_count: number;
-  request_token: string | null;
-}
-
-interface AxonExchange {
-  id: string;
-  exchange_number: number;
-  agent: AxonRole;
-  model: string;
-  content: string;
-  skipped: boolean;
-  created_at: string;
-}
-
-interface AxonStats {
-  total: number;
-  exec_count: number;
-  pass_count: number;
-  active_count: number;
-  avg_exchanges: string;
 }
 
 interface Iteration {
@@ -113,13 +82,11 @@ export default function AdminPage() {
   const [newIteration, setNewIteration] = useState({ name: "", tagline: "", description: "" });
   const [publishing, setPublishing] = useState(false);
 
-  // AXON state
-  const [axonRequests, setAxonRequests] = useState<AxonRequest[]>([]);
-  const [axonStats, setAxonStats] = useState<AxonStats | null>(null);
-  const [selectedAxonRequest, setSelectedAxonRequest] = useState<string | null>(null);
-  const [axonExchanges, setAxonExchanges] = useState<AxonExchange[]>([]);
-  const [axonDetail, setAxonDetail] = useState<AxonRequest | null>(null);
-  const [showAxon, setShowAxon] = useState(false);
+  // Restore secret from sessionStorage on mount
+  useEffect(() => {
+    const saved = sessionStorage.getItem("admin_secret");
+    if (saved) setSecret(saved);
+  }, []);
 
   const fetchAnalytics = useCallback(async (range: AnalyticsRange) => {
     try {
@@ -127,27 +94,6 @@ export default function AdminPage() {
       if (res.ok) setAnalytics(await res.json());
     } catch { /* ignore */ }
   }, []);
-
-  const fetchAxonRequests = useCallback(async () => {
-    const res = await fetch(`/api/admin/axon/requests?secret=${secret}`);
-    if (res.ok) {
-      const data = await res.json();
-      setAxonRequests(data.requests);
-      setAxonStats(data.stats);
-    }
-  }, [secret]);
-
-  const fetchAxonDetail = useCallback(async (requestId: string) => {
-    setSelectedAxonRequest(requestId);
-    setAxonExchanges([]);
-    setAxonDetail(null);
-    const res = await fetch(`/api/admin/axon/detail?secret=${secret}&request_id=${requestId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setAxonExchanges(data.exchanges);
-      setAxonDetail(data.request);
-    }
-  }, [secret]);
 
   const fetchIterations = useCallback(async () => {
     const res = await fetch(`/api/admin/iterations?secret=${secret}`);
@@ -163,13 +109,13 @@ export default function AdminPage() {
       const data = await res.json();
       setSessions(data.sessions);
       setAuthenticated(true);
+      sessionStorage.setItem("admin_secret", secret);
       fetchIterations();
       fetchAnalytics(analyticsRange);
-      fetchAxonRequests();
     } else {
       alert("Invalid admin secret");
     }
-  }, [secret, fetchIterations, fetchAnalytics, analyticsRange, fetchAxonRequests]);
+  }, [secret, fetchIterations, fetchAnalytics, analyticsRange]);
 
   const fetchExchanges = useCallback(
     async (sessionId: string) => {
@@ -278,23 +224,6 @@ export default function AdminPage() {
     a.click();
   }
 
-  async function exportAxon(requestId?: string) {
-    const url = requestId
-      ? `/api/admin/axon/export?secret=${secret}&request_id=${requestId}`
-      : `/api/admin/axon/export?secret=${secret}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = requestId
-      ? `axon-request-${requestId.slice(0, 8)}.json`
-      : "axon-export-all.json";
-    a.click();
-  }
-
   // Login screen
   if (!authenticated) {
     return (
@@ -328,9 +257,17 @@ export default function AdminPage() {
     <div className="min-h-screen bg-[var(--color-bg)]">
       <header className="border-b border-[var(--color-border)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <h1 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-text)]">
-            Admin Panel
-          </h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-text)]">
+              Admin Panel
+            </h1>
+            <Link
+              href="/admin/axon"
+              className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors uppercase tracking-wider"
+            >
+              AXON →
+            </Link>
+          </div>
           <div className="flex gap-3">
             <button
               onClick={publishExport}
@@ -786,275 +723,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* AXON Section */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-              AXON · EpistemicGate {axonRequests.length > 0 && `(${axonRequests.length})`}
-            </h2>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => exportAxon()}
-                className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-              >
-                Export All (JSON)
-              </button>
-              <button
-                onClick={() => {
-                  setShowAxon(!showAxon);
-                  if (!showAxon && axonRequests.length === 0) fetchAxonRequests();
-                }}
-                className="text-[10px] text-[var(--color-accent)] hover:underline"
-              >
-                {showAxon ? "Collapse" : "Expand"}
-              </button>
-            </div>
-          </div>
-
-          {showAxon && (
-            <>
-              {/* AXON stats row */}
-              {axonStats && (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                  <MetricCard label="Total Requests" value={axonStats.total} />
-                  <MetricCard label="EXEC" value={axonStats.exec_count} />
-                  <MetricCard label="PASS" value={axonStats.pass_count} />
-                  <MetricCard label="Active / Pending" value={axonStats.active_count} live={axonStats.active_count > 0} />
-                  <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-                    <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Avg Exchanges</p>
-                    <p className="mt-1 text-lg font-light text-[var(--color-text)]">{axonStats.avg_exchanges ?? "—"}</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                {/* AXON request list */}
-                <div className="lg:col-span-1 space-y-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Requests</p>
-                    <button
-                      onClick={fetchAxonRequests}
-                      className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-                    >
-                      Refresh
-                    </button>
-                  </div>
-                  <div className="space-y-2 max-h-[70vh] overflow-y-auto">
-                    {axonRequests.length === 0 ? (
-                      <p className="text-[10px] text-[var(--color-text-muted)] italic py-4 text-center">No AXON requests yet</p>
-                    ) : (
-                      axonRequests.map((r) => (
-                        <button
-                          key={r.id}
-                          onClick={() => fetchAxonDetail(r.id)}
-                          className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                            selectedAxonRequest === r.id
-                              ? "border-[var(--color-accent)] bg-[var(--color-surface-elevated)]"
-                              : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-muted)]"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span
-                              className={`text-[10px] uppercase tracking-wider font-medium ${
-                                r.output_decision === "EXEC"
-                                  ? "text-green-400"
-                                  : r.output_decision === "PASS"
-                                    ? "text-amber-400"
-                                    : r.status === "running" || r.status === "pending"
-                                      ? "text-[var(--color-accent)]"
-                                      : r.status === "error"
-                                        ? "text-red-400"
-                                        : "text-[var(--color-text-muted)]"
-                              }`}
-                            >
-                              {r.output_decision ?? r.status}
-                            </span>
-                            <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">
-                              {r.exchange_count} ex.
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">
-                            {new Date(r.created_at).toLocaleString()}
-                          </p>
-                          <p className="mt-1 text-xs text-[var(--color-text)] truncate">
-                            {r.input_text}
-                          </p>
-                          {r.request_token && (
-                            <p className="mt-1 text-[9px] font-mono text-[var(--color-text-muted)] truncate opacity-60">
-                              {r.request_token.slice(0, 12)}…
-                            </p>
-                          )}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* AXON request detail */}
-                <div className="lg:col-span-2">
-                  {selectedAxonRequest && axonDetail ? (
-                    <div className="space-y-4">
-                      {/* Metadata card */}
-                      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-4">
-                        <div className="flex items-center flex-wrap gap-2">
-                          <span className="font-mono text-xs text-[var(--color-text)]">
-                            {axonDetail.id.slice(0, 8)}
-                          </span>
-                          <span className="text-[10px] text-[var(--color-text-muted)]">
-                            {axonDetail.exchange_count} exchanges
-                          </span>
-                          {axonDetail.output_decision && (
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider border font-medium ${
-                                axonDetail.output_decision === "EXEC"
-                                  ? "bg-green-500/10 text-green-400 border-green-500/30"
-                                  : "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                              }`}
-                            >
-                              {axonDetail.output_decision}
-                            </span>
-                          )}
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider border ${
-                              axonDetail.status === "complete"
-                                ? "bg-[var(--color-bg)] text-[var(--color-text-muted)] border-[var(--color-border)]"
-                                : axonDetail.status === "running" || axonDetail.status === "pending"
-                                  ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)] border-[var(--color-accent)]/30"
-                                  : "bg-red-500/10 text-red-400 border-red-500/30"
-                            }`}
-                          >
-                            {axonDetail.status}
-                          </span>
-                          <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
-                            {new Date(axonDetail.created_at).toLocaleString()}
-                          </span>
-                        </div>
-
-                        {axonDetail.request_token && (
-                          <p className="text-[10px] font-mono text-[var(--color-text-muted)] opacity-60">
-                            token: {axonDetail.request_token.slice(0, 16)}…
-                          </p>
-                        )}
-
-                        {/* Input */}
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
-                            Input
-                          </p>
-                          <p className="text-sm text-[var(--color-text)] leading-relaxed bg-[var(--color-bg)] rounded p-3 border border-[var(--color-border)]">
-                            {axonDetail.input_text}
-                          </p>
-                        </div>
-
-                        {/* Output */}
-                        {axonDetail.output_content && (
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
-                              {axonDetail.output_decision === "EXEC" ? "Answer" : "Finding"}
-                            </p>
-                            <p className="text-sm text-[var(--color-text)] leading-relaxed bg-[var(--color-bg)] rounded p-3 border border-[var(--color-border)]">
-                              {axonDetail.output_content}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Timing */}
-                        {axonDetail.completed_at && (
-                          <p className="text-[10px] text-[var(--color-text-muted)]">
-                            Resolved in{" "}
-                            {Math.round(
-                              (new Date(axonDetail.completed_at).getTime() -
-                                new Date(axonDetail.created_at).getTime()) / 1000
-                            )}s
-                            {" · "}
-                            {new Date(axonDetail.completed_at).toLocaleTimeString()}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Exchanges */}
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                            Exchanges ({axonExchanges.length})
-                          </h3>
-                          <button
-                            onClick={() => exportAxon(selectedAxonRequest)}
-                            className="text-[10px] text-[var(--color-text-muted)] hover:underline"
-                          >
-                            Export JSON
-                          </button>
-                        </div>
-                        <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                          {axonExchanges.map((e) => {
-                            const agentDef = AXON_AGENTS[e.agent];
-                            if (e.skipped) {
-                              return (
-                                <div
-                                  key={e.id}
-                                  className="flex items-center gap-3 px-4 py-2 rounded border border-[var(--color-border)]/50 bg-[var(--color-surface)] opacity-40"
-                                >
-                                  <span
-                                    className="text-[10px] font-semibold uppercase tracking-wider"
-                                    style={{ color: agentDef.color }}
-                                  >
-                                    {agentDef.name}
-                                  </span>
-                                  <span className="text-[10px] text-[var(--color-text-muted)]">
-                                    #{e.exchange_number + 1}
-                                  </span>
-                                  <span className="text-[10px] font-mono text-[var(--color-text-muted)]">[PASS]</span>
-                                  <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
-                                    {new Date(e.created_at).toLocaleTimeString()}
-                                  </span>
-                                </div>
-                              );
-                            }
-                            return (
-                              <div
-                                key={e.id}
-                                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-                              >
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span
-                                    className="text-xs font-semibold uppercase tracking-wider"
-                                    style={{ color: agentDef.color }}
-                                  >
-                                    {agentDef.name}
-                                  </span>
-                                  <span className="text-[10px] text-[var(--color-text-muted)]">
-                                    #{e.exchange_number + 1}
-                                  </span>
-                                  <span className="text-[10px] text-[var(--color-text-muted)]">
-                                    {e.model}
-                                  </span>
-                                  <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
-                                    {new Date(e.created_at).toLocaleTimeString()}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-[var(--color-text)] leading-relaxed whitespace-pre-wrap">
-                                  {e.content}
-                                </p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  ) : selectedAxonRequest ? (
-                    <div className="flex h-40 items-center justify-center text-sm text-[var(--color-text-muted)]">
-                      Loading…
-                    </div>
-                  ) : (
-                    <div className="flex h-40 items-center justify-center text-sm text-[var(--color-text-muted)]">
-                      Select a request to view details
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
       </main>
     </div>
   );
