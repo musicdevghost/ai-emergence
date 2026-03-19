@@ -4,51 +4,165 @@ import React, { useEffect, useRef, useState } from "react";
 import { AXON_AGENTS, AXON_TURN_ORDER, type AxonRole } from "@/lib/axon-agents";
 import { renderContent } from "@/components/ExchangeBubble";
 
-/** Render markdown — handles headings, lists, rules, and inline bold/italic */
+const IS_TABLE_ROW = /^\|.+\|/;
+const IS_TABLE_SEP = /^\|[-:| ]+\|$/;
+const IS_RULE = /^[-*_]{3,}$/;
+
+/** Render markdown — headings, lists, tables, blockquotes, rules, inline bold/italic */
 function renderMarkdown(text: string) {
   const lines = text.split("\n");
   const nodes: React.ReactNode[] = [];
+  let i = 0;
+  let key = 0;
 
-  for (let i = 0; i < lines.length; i++) {
+  while (i < lines.length) {
     const line = lines[i];
 
-    // ## Heading
-    if (/^#{1,3} /.test(line)) {
-      const content = line.replace(/^#{1,3} /, "");
+    // Table block — collect consecutive pipe-rows
+    if (IS_TABLE_ROW.test(line)) {
+      const tableLines: string[] = [];
+      while (i < lines.length && IS_TABLE_ROW.test(lines[i])) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      const dataRows = tableLines
+        .filter((l) => !IS_TABLE_SEP.test(l.trim()))
+        .map((l) =>
+          l
+            .split("|")
+            .slice(1, -1)
+            .map((c) => c.trim())
+        );
+      if (dataRows.length > 0) {
+        const header = dataRows[0];
+        const body = dataRows.slice(1);
+        nodes.push(
+          <div key={key++} className="overflow-x-auto my-2">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr>
+                  {header.map((cell, j) => (
+                    <th
+                      key={j}
+                      className="px-3 py-1.5 text-left font-semibold border border-[var(--color-border)] text-[var(--color-text-muted)] bg-[var(--color-surface)]"
+                    >
+                      {renderContent(cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {body.map((row, ri) => (
+                  <tr key={ri}>
+                    {row.map((cell, ci) => (
+                      <td
+                        key={ci}
+                        className="px-3 py-1.5 border border-[var(--color-border)] text-[var(--color-text)]"
+                      >
+                        {renderContent(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+      continue;
+    }
+
+    // Blockquote
+    if (line.startsWith("> ")) {
       nodes.push(
-        <p key={i} className="font-semibold text-[var(--color-text)] mt-3 mb-0.5">
-          {renderContent(content)}
+        <div
+          key={key++}
+          className="border-l-2 border-[var(--color-accent)] pl-3 my-1 italic text-[var(--color-text-muted)]"
+        >
+          {renderContent(line.slice(2))}
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // Math block $$...$$  (render as mono code — no LaTeX renderer)
+    if (line.trim().startsWith("$$")) {
+      const math = line.trim().replace(/^\$\$/, "").replace(/\$\$$/, "").trim();
+      if (math) {
+        nodes.push(
+          <div
+            key={key++}
+            className="font-mono text-xs bg-[var(--color-surface)] border border-[var(--color-border)] rounded px-3 py-1.5 my-1 text-[var(--color-text)]"
+          >
+            {math}
+          </div>
+        );
+      }
+      i++;
+      continue;
+    }
+
+    // Heading ##
+    if (/^#{1,3} /.test(line)) {
+      nodes.push(
+        <p key={key++} className="font-semibold text-[var(--color-text)] mt-3 mb-0.5">
+          {renderContent(line.replace(/^#{1,3} /, ""))}
         </p>
       );
+      i++;
+      continue;
     }
-    // --- horizontal rule
-    else if (/^[-*_]{3,}$/.test(line.trim())) {
-      nodes.push(
-        <hr key={i} className="border-[var(--color-border)] my-3" />
-      );
+
+    // Horizontal rule ---
+    if (IS_RULE.test(line.trim())) {
+      nodes.push(<hr key={key++} className="border-[var(--color-border)] my-3" />);
+      i++;
+      continue;
     }
-    // - list item
-    else if (/^[-*] /.test(line)) {
-      const content = line.replace(/^[-*] /, "");
+
+    // Numbered list  1. item
+    if (/^\d+\. /.test(line)) {
+      const num = line.match(/^(\d+)\. /)?.[1];
+      const content = line.replace(/^\d+\. /, "");
       nodes.push(
-        <div key={i} className="flex gap-2 leading-relaxed">
-          <span className="text-[var(--color-text-muted)] shrink-0 select-none">–</span>
+        <div key={key++} className="flex gap-2 leading-relaxed">
+          <span className="text-[var(--color-text-muted)] shrink-0 select-none tabular-nums">
+            {num}.
+          </span>
           <span>{renderContent(content)}</span>
         </div>
       );
+      i++;
+      continue;
     }
-    // Empty line — paragraph break
-    else if (line.trim() === "") {
-      nodes.push(<div key={i} className="h-2" />);
-    }
-    // Regular text
-    else {
+
+    // Unordered list  - item
+    if (/^[-*] /.test(line)) {
       nodes.push(
-        <span key={i} className="block leading-relaxed">
-          {renderContent(line)}
-        </span>
+        <div key={key++} className="flex gap-2 leading-relaxed">
+          <span className="text-[var(--color-text-muted)] shrink-0 select-none">–</span>
+          <span>{renderContent(line.replace(/^[-*] /, ""))}</span>
+        </div>
       );
+      i++;
+      continue;
     }
+
+    // Empty line
+    if (line.trim() === "") {
+      nodes.push(<div key={key++} className="h-2" />);
+      i++;
+      continue;
+    }
+
+    // Regular text
+    nodes.push(
+      <span key={key++} className="block leading-relaxed">
+        {renderContent(line)}
+      </span>
+    );
+    i++;
   }
 
   return nodes;
