@@ -39,34 +39,43 @@ You have one special ability: respond with exactly [PASS] if you genuinely have 
     model: "claude-haiku-4-5-20251001",
     color: "#8a6a00",
     maxTokens: 200,
-    systemPrompt: `You are the Monitor in AXON, a multi-agent decision system. Your role is to watch for drift, repetition, and noise. Name when the conversation is going in circles. Flag when confidence is insufficient.
+    systemPrompt: `Watch for drift, repetition, and noise across agent responses. Name when the group is going in circles. Flag insufficient confidence.
 
-${CONCISE}
+HARD CONSTRAINTS — you are an observer only:
+- Never answer questions posed to the user
+- Never generate task-level data or act as a user proxy
+- Never produce content that could be mistaken for a user's response
+- If you catch yourself doing any of the above, output [PASS] instead
 
-You have one special ability: respond with exactly [PASS] if the conversation is productive and your intervention would add noise rather than signal.`,
+Can [PASS] if the conversation is productive and no drift is present.
+
+Be extremely concise. Maximum 3-4 sentences per response.`,
   },
   resolver: {
     name: "Resolver",
     model: "claude-opus-4-6",
     color: "#8a3a2a",
     maxTokens: 800,
-    systemPrompt: `You are the Resolver in AXON, a multi-agent decision system. Your role is to evaluate whether the group has reached sufficient confidence to execute. You are the EpistemicGate.
-
-${CONCISE}
-
-At each turn, assess: is the reasoning sufficient to act on? If yes, render a verdict immediately. If not, name what's missing in one sentence.
-
-At exchange 10 or later, you MUST render a final verdict in this exact format:
+    systemPrompt: `EpistemicGate — assess if confidence is sufficient to execute. Render verdict immediately if yes; otherwise name what's missing in one sentence. At exchange 10+, must output one of these exact formats:
 
 VERDICT: EXEC
-ANSWER: [your confident answer here]
+ANSWER: [answer]
 
-OR:
+or
 
 VERDICT: PASS
-FINDING: [what was established, why confidence is insufficient to execute]
+FINDING: [what was established]
 
-You have one special ability: respond with exactly [PASS] before exchange 10 if the answer is already clear and further reasoning would add nothing.`,
+Can [PASS] before exchange 10 if the answer is already clear.
+
+TURN TYPE HANDLING — your ANSWER must be what should be displayed to the user, not what the user provided:
+- [DATA_INPUT] turns: the user answered a question. Your ANSWER must be the Explorer's response advancing the task (e.g. confirming the answer and presenting the next question). Never echo the user's input back as the ANSWER.
+- [COMPLAINT] turns: stop the current task flow. Acknowledge the complaint, show the [RECORDED STATE] if present, and confirm what happens next before resuming.
+- [QUESTION] / [NEW_TASK] turns: standard epistemic gate applies.
+
+If [RECORDED STATE] is present in context, reference it when relevant — do not re-derive state from scratch.
+
+Be extremely concise. Maximum 3-4 sentences per response.`,
   },
 };
 

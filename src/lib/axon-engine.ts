@@ -108,6 +108,43 @@ function buildHistoryString(conversationHistory: ConversationTurn[]): string {
     .join("\n\n---\n\n");
 }
 
+type TurnType = "DATA_INPUT" | "QUESTION" | "COMPLAINT" | "NEW_TASK";
+
+function classifyTurn(input: string, conversationHistory: ConversationTurn[]): TurnType {
+  const lower = input.toLowerCase();
+
+  const complaintPatterns = ["wrong", "bug", "error", "that's not", "stop", "you're repeating", "again", "same answer", "fix"];
+  if (complaintPatterns.some(p => lower.includes(p))) return "COMPLAINT";
+
+  if (conversationHistory.length > 0) {
+    const lastContent = conversationHistory[conversationHistory.length - 1]?.verdict?.content ?? "";
+    if (lastContent.trim().endsWith("?")) return "DATA_INPUT";
+  }
+
+  if (input.trim().split(/\s+/).length <= 4 && conversationHistory.length > 0) return "DATA_INPUT";
+
+  return "QUESTION";
+}
+
+function buildTaskState(conversationHistory: ConversationTurn[]): string {
+  const state: Record<string, string> = {};
+
+  for (const turn of conversationHistory) {
+    const qaMatch = turn.verdict?.content?.match(/Q(\d+)\s*[=:]\s*\*{0,2}([^*\n]+)\*{0,2}/gi);
+    if (qaMatch) {
+      for (const match of qaMatch) {
+        const [, num, val] = match.match(/Q(\d+)\s*[=:]\s*\*{0,2}([^*\n]+)\*{0,2}/i) ?? [];
+        if (num && val) state[`Q${num}`] = val.trim();
+      }
+    }
+  }
+
+  if (Object.keys(state).length === 0) return "";
+
+  const lines = Object.entries(state).map(([k, v]) => `  ${k}: ${v}`).join("\n");
+  return `\n[RECORDED STATE]\n${lines}\n`;
+}
+
 /** Run a single AXON exchange and persist it. Called once per process request. */
 export async function runOneAxonExchange(
   requestId: string,
@@ -125,6 +162,10 @@ export async function runOneAxonExchange(
   const hasContext = !!(context.text || context.file);
   const ctxNote = hasContext ? contextSummaryNote(context) : "";
 
+  const turnType = classifyTurn(inputText, conversationHistory);
+  const turnTypeNote = `[TURN TYPE: ${turnType}]`;
+  const taskState = buildTaskState(conversationHistory);
+
   let messages: Anthropic.MessageParam[];
 
   if (exchangeNumber === 0) {
@@ -141,7 +182,7 @@ export async function runOneAxonExchange(
       messages = [
         {
           role: "user",
-          content: `${historyPrefix}Current question (Turn ${currentTurnNumber + 1}): ${inputText}${ctxNote}\n\nContinue reasoning based on the full conversation above.`,
+          content: `${historyPrefix}Current question (Turn ${currentTurnNumber + 1}): ${inputText}${turnTypeNote}${ctxNote}\n\nContinue reasoning based on the full conversation above.`,
         },
       ];
     }
@@ -157,14 +198,14 @@ export async function runOneAxonExchange(
       messages = [
         {
           role: "user",
-          content: `Task: ${inputText}${ctxNote}\n\n${turnNote}\n\n${history}\n\nYour turn.`,
+          content: `Task: ${inputText}${turnTypeNote}${ctxNote}\n\n${turnNote}\n\n${taskState}${history}\n\nYour turn.`,
         },
       ];
     } else {
       messages = [
         {
           role: "user",
-          content: `Task: ${inputText}${ctxNote}\n\n${history}\n\nYour turn.`,
+          content: `Task: ${inputText}${turnTypeNote}${ctxNote}\n\n${taskState}${history}\n\nYour turn.`,
         },
       ];
     }
