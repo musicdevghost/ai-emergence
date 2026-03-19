@@ -203,6 +203,7 @@ export default function AxonPage() {
   const [decision, setDecision] = useState<"EXEC" | "PASS" | null>(null);
   const [resultContent, setResultContent] = useState("");
   const [runError, setRunError] = useState("");
+  const [reasoningCollapsed, setReasoningCollapsed] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const stopPolling = useRef(false);
@@ -263,6 +264,7 @@ export default function AxonPage() {
     setResultContent("");
     setRunError("");
     setShowTyping(false);
+    setReasoningCollapsed(false);
     stopPolling.current = false;
 
     setState("running");
@@ -343,6 +345,7 @@ export default function AxonPage() {
     setDecision(null);
     setResultContent("");
     setShowTyping(false);
+    setReasoningCollapsed(false);
     setState("input");
   };
 
@@ -482,7 +485,7 @@ export default function AxonPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 space-y-6">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 space-y-4">
         {/* Task */}
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
           <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
@@ -491,15 +494,37 @@ export default function AxonPage() {
           <p className="text-sm text-[var(--color-text)]">{submittedTask}</p>
         </div>
 
-        {/* Exchange stream */}
-        <div className="space-y-2">
-          {visibleExchanges.map((exchange) => (
-            <AxonBubble key={exchange.exchange_number} exchange={exchange} />
-          ))}
-        </div>
+        {/* Collapse toggle — only shown once verdict is ready */}
+        {state === "result" && decision && (
+          <button
+            onClick={() => setReasoningCollapsed((c) => !c)}
+            className="flex items-center gap-1.5 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors select-none"
+          >
+            <span
+              className="inline-block transition-transform duration-200"
+              style={{ transform: reasoningCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+            >
+              ▾
+            </span>
+            {reasoningCollapsed
+              ? `Show reasoning (${visibleExchanges.length} exchange${visibleExchanges.length !== 1 ? "s" : ""})`
+              : "Collapse reasoning"}
+          </button>
+        )}
 
-        {/* Typing indicator — shows while LLM is actually thinking */}
-        {showTyping && <AxonTypingIndicator agent={typingAgent} />}
+        {/* Exchange stream — hidden when collapsed */}
+        {!reasoningCollapsed && (
+          <>
+            <div className="space-y-2">
+              {visibleExchanges.map((exchange) => (
+                <AxonBubble key={exchange.exchange_number} exchange={exchange} />
+              ))}
+            </div>
+
+            {/* Typing indicator — shows while LLM is actually thinking */}
+            {showTyping && <AxonTypingIndicator agent={typingAgent} />}
+          </>
+        )}
 
         {/* Verdict */}
         {state === "result" && decision && (
