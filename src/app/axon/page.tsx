@@ -205,8 +205,11 @@ export default function AxonPage() {
   const [runError, setRunError] = useState("");
   const [reasoningCollapsed, setReasoningCollapsed] = useState(false);
 
+  const [elapsedSeconds, setElapsedSeconds] = useState<number | null>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const stopPolling = useRef(false);
+  const runStartTime = useRef<number>(0);
 
   // Check auth on mount
   useEffect(() => {
@@ -265,7 +268,9 @@ export default function AxonPage() {
     setRunError("");
     setShowTyping(false);
     setReasoningCollapsed(false);
+    setElapsedSeconds(null);
     stopPolling.current = false;
+    runStartTime.current = Date.now();
 
     setState("running");
 
@@ -330,6 +335,7 @@ export default function AxonPage() {
       if (data.done) {
         setDecision(data.decision ?? null);
         setResultContent(data.content ?? "");
+        setElapsedSeconds(Math.round((Date.now() - runStartTime.current) / 1000));
         setState("result");
         break;
       }
@@ -346,6 +352,7 @@ export default function AxonPage() {
     setResultContent("");
     setShowTyping(false);
     setReasoningCollapsed(false);
+    setElapsedSeconds(null);
     setState("input");
   };
 
@@ -528,7 +535,12 @@ export default function AxonPage() {
 
         {/* Verdict */}
         {state === "result" && decision && (
-          <VerdictCard decision={decision} content={resultContent} />
+          <VerdictCard
+            decision={decision}
+            content={resultContent}
+            elapsedSeconds={elapsedSeconds}
+            exchangeCount={visibleExchanges.length}
+          />
         )}
 
         {/* Run another */}
@@ -626,11 +638,22 @@ function AxonTypingIndicator({ agent }: { agent: AxonRole }) {
 function VerdictCard({
   decision,
   content,
+  elapsedSeconds,
+  exchangeCount,
 }: {
   decision: "EXEC" | "PASS";
   content: string;
+  elapsedSeconds: number | null;
+  exchangeCount: number;
 }) {
   const isExec = decision === "EXEC";
+
+  const meta = [
+    elapsedSeconds !== null && `${elapsedSeconds}s`,
+    exchangeCount > 0 && `${exchangeCount} exchange${exchangeCount !== 1 ? "s" : ""}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div
@@ -640,17 +663,24 @@ function VerdictCard({
         backgroundColor: isExec ? "#2e7d6a0d" : "#8a6a000d",
       }}
     >
-      <div className="flex items-center gap-3">
-        <div
-          className="h-2 w-2 rounded-full"
-          style={{ backgroundColor: isExec ? "#2e7d6a" : "#8a6a00" }}
-        />
-        <span
-          className="text-xs font-semibold uppercase tracking-[0.2em]"
-          style={{ color: isExec ? "#2e7d6a" : "#8a6a00" }}
-        >
-          {isExec ? "VERDICT: EXEC" : "VERDICT: PASS"}
-        </span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: isExec ? "#2e7d6a" : "#8a6a00" }}
+          />
+          <span
+            className="text-xs font-semibold uppercase tracking-[0.2em]"
+            style={{ color: isExec ? "#2e7d6a" : "#8a6a00" }}
+          >
+            {isExec ? "VERDICT: EXEC" : "VERDICT: PASS"}
+          </span>
+        </div>
+        {meta && (
+          <span className="text-[10px] text-[var(--color-text-muted)] tabular-nums">
+            {meta}
+          </span>
+        )}
       </div>
 
       <div className="space-y-1">
