@@ -176,6 +176,17 @@ interface AxonExchange {
 }
 
 type PageState = "gate" | "input" | "running" | "result";
+type ContextTab = "file" | "text";
+
+interface ContextFile {
+  name: string;
+  type: string;
+  data: string; // base64
+  size: number;
+}
+
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
+const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"];
 
 const EXAMPLE_TASKS = [
   "What is 1+1?",
@@ -206,6 +217,16 @@ export default function AxonPage() {
   const [reasoningCollapsed, setReasoningCollapsed] = useState(false);
 
   const [elapsedSeconds, setElapsedSeconds] = useState<number | null>(null);
+
+  // Context state
+  const [contextTab, setContextTab] = useState<ContextTab>("file");
+  const [contextFile, setContextFile] = useState<ContextFile | null>(null);
+  const [contextText, setContextText] = useState("");
+  const [contextFileError, setContextFileError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  // Snapshot of context at run time (to show in running/result state)
+  const [submittedContextFile, setSubmittedContextFile] = useState<ContextFile | null>(null);
+  const [submittedContextText, setSubmittedContextText] = useState("");
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const stopPolling = useRef(false);
@@ -256,9 +277,35 @@ export default function AxonPage() {
     }
   };
 
+  const handleFileSelect = (file: File) => {
+    setContextFileError("");
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      setContextFileError("Unsupported file type. Use PDF, PNG, JPG, GIF, or WebP.");
+      return;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      setContextFileError("File too large. Maximum size is 5 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      // Strip data URL prefix — keep only the base64 part
+      const base64 = result.split(",")[1];
+      setContextFile({ name: file.name, type: file.type, data: base64, size: file.size });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleRun = async (task: string) => {
     if (!task.trim()) return;
     const taskText = task.trim();
+
+    // Snapshot context
+    const ctxFile = contextFile;
+    const ctxText = contextText.trim();
+    setSubmittedContextFile(ctxFile);
+    setSubmittedContextText(ctxText);
 
     setSubmittedTask(taskText);
     setTaskInput("");
@@ -274,13 +321,22 @@ export default function AxonPage() {
 
     setState("running");
 
+    // Build body with optional context
+    const body: {
+      input: string;
+      context_text?: string;
+      context_file?: { name: string; type: string; data: string };
+    } = { input: taskText };
+    if (ctxText) body.context_text = ctxText;
+    if (ctxFile) body.context_file = { name: ctxFile.name, type: ctxFile.type, data: ctxFile.data };
+
     // Step 1: create the request
     let requestId: string;
     try {
       const res = await fetch("/api/axon/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: taskText }),
+        body: JSON.stringify(body),
       });
       if (res.status === 401) { setState("gate"); return; }
       if (!res.ok) { setRunError("Failed to start. Try again."); setState("input"); setTaskInput(taskText); return; }
@@ -348,6 +404,8 @@ export default function AxonPage() {
     setShowTyping(false);
     setReasoningCollapsed(false);
     setElapsedSeconds(null);
+    setSubmittedContextFile(null);
+    setSubmittedContextText("");
     setState("input");
   };
 
@@ -460,6 +518,116 @@ export default function AxonPage() {
               ))}
             </div>
 
+            {/* Context section */}
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                Context <span className="normal-case not-italic opacity-50">(optional)</span>
+              </p>
+
+              {/* Tabs */}
+              <div className="flex gap-1 text-[10px]">
+                {(["file", "text"] as ContextTab[]).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setContextTab(tab)}
+                    className={`px-3 py-1 rounded-full border transition-colors ${
+                      contextTab === tab
+                        ? "border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10"
+                        : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                    }`}
+                  >
+                    {tab === "file" ? "Upload file" : "Paste text"}
+                  </button>
+                ))}
+              </div>
+
+              {contextTab === "file" && (
+                <div className="space-y-2">
+                  {contextFile ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+                      {contextFile.type.startsWith("image/") ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`data:${contextFile.type};base64,${contextFile.data}`}
+                          alt={contextFile.name}
+                          className="h-10 w-10 rounded object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded bg-[var(--color-bg)] border border-[var(--color-border)] flex items-center justify-center shrink-0">
+                          <span className="text-[10px] font-mono text-[var(--color-text-muted)]">PDF</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-[var(--color-text)] truncate">{contextFile.name}</p>
+                        <p className="text-[10px] text-[var(--color-text-muted)]">
+                          {(contextFile.size / 1024).toFixed(0)} KB
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setContextFile(null); setContextFileError(""); }}
+                        className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors text-sm shrink-0"
+                        aria-label="Remove file"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 cursor-pointer transition-colors ${
+                        isDragging
+                          ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
+                          : "border-[var(--color-border)] hover:border-[var(--color-text-muted)]"
+                      }`}
+                      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDragging(false);
+                        const file = e.dataTransfer.files[0];
+                        if (file) handleFileSelect(file);
+                      }}
+                    >
+                      <input
+                        type="file"
+                        className="sr-only"
+                        accept=".pdf,.png,.jpg,.jpeg,.gif,.webp"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileSelect(file);
+                        }}
+                      />
+                      <span className="text-[var(--color-text-muted)] text-xs">
+                        Drop file here or click to upload
+                      </span>
+                      <span className="text-[10px] text-[var(--color-text-muted)] opacity-60">
+                        Supports PDF and images · Max 5 MB
+                      </span>
+                    </label>
+                  )}
+                  {contextFileError && (
+                    <p className="text-[10px] text-red-400">{contextFileError}</p>
+                  )}
+                </div>
+              )}
+
+              {contextTab === "text" && (
+                <div className="space-y-1">
+                  <textarea
+                    value={contextText}
+                    onChange={(e) => setContextText(e.target.value)}
+                    placeholder="Paste any relevant text, code, data or notes..."
+                    rows={6}
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)] transition-colors resize-none"
+                  />
+                  <p className="text-[10px] text-[var(--color-text-muted)] text-right">
+                    {contextText.length.toLocaleString()} chars
+                  </p>
+                </div>
+              )}
+            </div>
+
             <button
               type="submit"
               disabled={!taskInput.trim()}
@@ -495,6 +663,20 @@ export default function AxonPage() {
           </p>
           <p className="text-sm text-[var(--color-text)]">{submittedTask}</p>
         </div>
+
+        {/* Context badge — shown when context was submitted */}
+        {(submittedContextFile || submittedContextText) && (
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-[10px] text-[var(--color-text-muted)]">
+              <span className="opacity-60">⊕</span>
+              {submittedContextFile
+                ? submittedContextFile.type === "application/pdf"
+                  ? `PDF: ${submittedContextFile.name}`
+                  : `Image: ${submittedContextFile.name}`
+                : "Text context provided"}
+            </span>
+          </div>
+        )}
 
         {/* Collapse toggle — only shown once verdict is ready */}
         {state === "result" && decision && (

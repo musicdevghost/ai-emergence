@@ -2,11 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic();
 
-/** Call Anthropic API with exponential backoff retry */
+/** Call Anthropic API with exponential backoff retry. Supports multimodal content. */
 export async function callWithRetry(
   model: string,
   systemPrompt: string,
-  messages: { role: "user" | "assistant"; content: string }[],
+  messages: Anthropic.MessageParam[],
   maxTokens = 512,
   maxRetries = 3
 ): Promise<string> {

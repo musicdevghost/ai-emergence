@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { isAxonBeta } from "@/lib/auth";
-import { runOneAxonExchange, type AxonExchange } from "@/lib/axon-engine";
+import { runOneAxonExchange, type AxonExchange, type AxonContext } from "@/lib/axon-engine";
 import type { AxonRole } from "@/lib/axon-agents";
 
 // Each call runs one LLM exchange — single focused call well within 30s
@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
   const sql = getDb();
 
   const requests = await sql`
-    SELECT id, status, input_text, exchange_count, output_decision, output_content
+    SELECT id, status, input_text, exchange_count, output_decision, output_content,
+           context_text, context_file_name, context_file_type, context_file_data
     FROM axon_requests
     WHERE id = ${requestId}
   `;
@@ -55,12 +56,24 @@ export async function GET(request: NextRequest) {
 
   const exchangeNumber = req.exchange_count as number;
 
+  // Build context — only pass file data on exchange 0 (first use only)
+  const context: AxonContext = {};
+  if (req.context_text) context.text = req.context_text as string;
+  if (req.context_file_name && req.context_file_type) {
+    context.file = {
+      name: req.context_file_name as string,
+      type: req.context_file_type as string,
+      data: (exchangeNumber === 0 ? req.context_file_data : null) as string,
+    };
+  }
+
   try {
     const result = await runOneAxonExchange(
       requestId,
       req.input_text as string,
       previousExchanges,
-      exchangeNumber
+      exchangeNumber,
+      context
     );
 
     // When complete, read output_content back from DB — guarantees full stored value
