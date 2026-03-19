@@ -4,29 +4,21 @@ import { isAxonBeta } from "@/lib/auth";
 import { runOneAxonExchange, type AxonExchange } from "@/lib/axon-engine";
 import type { AxonRole } from "@/lib/axon-agents";
 
-// Each call runs one LLM exchange — well within 30s per-function limit
+// Each call runs one LLM exchange — single focused call well within 30s
 export const maxDuration = 30;
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   if (!isAxonBeta(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { request_id?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const requestId = body.request_id;
+  const requestId = request.nextUrl.searchParams.get("request_id");
   if (!requestId) {
     return NextResponse.json({ error: "request_id required" }, { status: 400 });
   }
 
   const sql = getDb();
 
-  // Get the request
   const requests = await sql`
     SELECT id, status, input_text, exchange_count, output_decision, output_content
     FROM axon_requests

@@ -301,11 +301,7 @@ export default function AxonPage() {
       };
 
       try {
-        const res = await fetch("/api/axon/process", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ request_id: requestId }),
-        });
+        const res = await fetch(`/api/axon/process?request_id=${requestId}`);
         if (!res.ok) {
           setRunError("Engine error. Try again.");
           setState("input");

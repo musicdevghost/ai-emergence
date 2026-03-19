@@ -46,7 +46,7 @@ export async function runOneAxonExchange(
           },
         ];
 
-  const content = await callWithRetry(agent.model, agent.systemPrompt, messages, 2048);
+  const content = await callWithRetry(agent.model, agent.systemPrompt, messages, 300);
   const skipped = content.trim() === "[PASS]";
   const newCount = exchangeNumber + 1;
 
@@ -90,17 +90,18 @@ export async function runOneAxonExchange(
 
   // Max exchanges reached — force PASS
   if (newCount >= MAX_EXCHANGES) {
+    const timeoutMsg = "Reasoning depth limit reached. Insufficient confidence to execute within available reasoning budget.";
     await sql`
       UPDATE axon_requests SET
         exchange_count = ${newCount},
         status = 'complete',
         output_decision = 'PASS',
-        output_content = ${content},
+        output_content = ${timeoutMsg},
         confidence_level = 'low',
         completed_at = now()
       WHERE id = ${requestId}
     `;
-    return { role, content, skipped, isComplete: true, decision: "PASS", finalContent: content };
+    return { role, content, skipped, isComplete: true, decision: "PASS", finalContent: timeoutMsg };
   }
 
   // Still running
