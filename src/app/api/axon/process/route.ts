@@ -119,6 +119,20 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("AXON process error:", error);
+
+    // Detect rate limit — return 429 with reset time so the client can surface it
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "status" in error &&
+      (error as { status: number }).status === 429
+    ) {
+      const headers = (error as { headers?: Headers }).headers;
+      const resetAt = headers?.get("anthropic-ratelimit-input-tokens-reset") ?? null;
+      await sql`UPDATE axon_requests SET status = 'error' WHERE id = ${requestId}`;
+      return NextResponse.json({ error: "rate_limited", resetAt }, { status: 429 });
+    }
+
     await sql`
       UPDATE axon_requests SET status = 'error' WHERE id = ${requestId}
     `;

@@ -518,7 +518,20 @@ export default function AxonPage() {
       try {
         const res = await fetch(`/api/axon/process?request_id=${reqId}`);
         if (!res.ok) {
-          setRunError("Engine error. Try again.");
+          if (res.status === 429) {
+            const body = await res.json().catch(() => ({}));
+            const resetAt = body.resetAt ? new Date(body.resetAt) : null;
+            const mins = resetAt
+              ? Math.ceil((resetAt.getTime() - Date.now()) / 60000)
+              : null;
+            setRunError(
+              mins && mins > 0
+                ? `Rate limit reached. Try again in ~${mins} minute${mins === 1 ? "" : "s"}.`
+                : "Rate limit reached. Try again in a moment."
+            );
+          } else {
+            setRunError("Engine error. Try again.");
+          }
           setState("input");
           setTaskInput(taskText);
           return;
