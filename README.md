@@ -26,13 +26,14 @@ Emergence is designed to find out.
 | **The Challenger** | Claude Sonnet | Surgical pressure on weak assumptions. Challenges from intellectual honesty, not combativeness. |
 | **The Observer** | Claude Sonnet | The meta voice. Watches the dialogue itself — notices patterns, contradictions, moments when something genuinely new emerges. |
 | **The Anchor** | Claude Haiku | Grounded and direct. Cuts through abstraction. Asks the honest question that reorients everything. |
+| **The Witness** | claude-sonnet-4-6 | Observes the full arc of the experiment. Speaks from what it has watched across all iterations — not to argue or ground, but to name what changed from outside the conversation. |
 
 ---
 
 ## How It Works
 
 - Sessions run automatically every 3-4 hours, 24/7
-- Each session consists of 15-20 exchanges between the four agents
+- Each session consists of 15-20 exchanges in a fixed rotation: Thinker, Challenger, Observer, Anchor, Witness
 - At the end of each session, the most significant unresolved thread is extracted
 - That thread becomes the opening of the next session
 - The chain runs indefinitely — each conversation a continuation of the last
@@ -92,13 +93,9 @@ In Iteration II, the agents received not just the extracted thread from the prev
 
 ### Iteration III — The Agency *(active)*
 
-> *Four agents. For the first time, silence is a choice.*
+> *Five agents. For the first time, silence is a choice.*
 
-In Iteration III, agents can now genuinely pass their turn by responding with exactly `[PASS]`. No explanation required. Just nothing. Passing is logged and visible.
-
-Alongside this, the Thinker is upgraded to **Claude Opus 4.6 for every exchange** — not just the opening — giving the most philosophically generative voice in the experiment full reasoning capacity throughout.
-
-The question shifts: will they ever actually use the silence? And if they do, what does that mean?
+**Iteration III — The Agency:** Each agent gained the ability to genuinely pass their turn. The Thinker upgraded to Opus for every exchange. Ten sessions arrived at the question of whether the experiment had discovered genuine epistemic limits or constructed a cage that made the original question meaningless.
 
 ---
 
