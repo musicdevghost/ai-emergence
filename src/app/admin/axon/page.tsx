@@ -15,6 +15,7 @@ interface AxonRequest {
   confidence_level: string | null;
   exchange_count: number;
   request_token: string | null;
+  version: "v1" | "v2";
 }
 
 interface AxonExchange {
@@ -34,9 +35,16 @@ interface AxonStats {
   pass_count: number;
   active_count: number;
   avg_exchanges: string;
+  v1_count: number;
+  v2_count: number;
 }
 
 const SESSION_KEY = "admin_secret";
+
+const VERSION_COLORS = {
+  v1: "text-amber-400 border-amber-400/30 bg-amber-400/10",
+  v2: "text-blue-400 border-blue-400/30 bg-blue-400/10",
+};
 
 export default function AxonAdminPage() {
   const [secret, setSecret] = useState("");
@@ -47,6 +55,7 @@ export default function AxonAdminPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [exchanges, setExchanges] = useState<AxonExchange[]>([]);
   const [detail, setDetail] = useState<AxonRequest | null>(null);
+  const [versionFilter, setVersionFilter] = useState<"all" | "v1" | "v2">("all");
 
   // Restore secret from sessionStorage on mount
   useEffect(() => {
@@ -54,8 +63,10 @@ export default function AxonAdminPage() {
     if (saved) setSecret(saved);
   }, []);
 
-  const fetchRequests = useCallback(async (s: string) => {
-    const res = await fetch(`/api/admin/axon/requests?secret=${s}`);
+  const fetchRequests = useCallback(async (s: string, version: string = "all") => {
+    const params = new URLSearchParams({ secret: s });
+    if (version !== "all") params.set("version", version);
+    const res = await fetch(`/api/admin/axon/requests?${params}`);
     if (res.ok) {
       const data = await res.json();
       setRequests(data.requests);
@@ -111,16 +122,31 @@ export default function AxonAdminPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const changeVersion = useCallback(async (v: "all" | "v1" | "v2") => {
+    setVersionFilter(v);
+    setSelectedId(null);
+    setDetail(null);
+    setExchanges([]);
+    await fetchRequests(secret, v);
+  }, [secret, fetchRequests]);
+
   async function exportAxon(requestId?: string) {
-    const url = requestId
-      ? `/api/admin/axon/export?secret=${secret}&request_id=${requestId}`
-      : `/api/admin/axon/export?secret=${secret}`;
-    const res = await fetch(url);
+    const params = new URLSearchParams({ secret });
+    if (requestId) {
+      params.set("request_id", requestId);
+    } else if (versionFilter !== "all") {
+      params.set("version", versionFilter);
+    }
+    const res = await fetch(`/api/admin/axon/export?${params}`);
     const data = await res.json();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = requestId ? `axon-request-${requestId.slice(0, 8)}.json` : "axon-export-all.json";
+    a.download = requestId
+      ? `axon-request-${requestId.slice(0, 8)}.json`
+      : versionFilter !== "all"
+      ? `axon-export-${versionFilter}.json`
+      : "axon-export-all.json";
     a.click();
   }
 
@@ -165,7 +191,7 @@ export default function AxonAdminPage() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => fetchRequests(secret)}
+              onClick={() => fetchRequests(secret, versionFilter)}
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
             >
               Refresh
@@ -174,7 +200,7 @@ export default function AxonAdminPage() {
               onClick={() => exportAxon()}
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
             >
-              Export All (JSON)
+              Export {versionFilter !== "all" ? versionFilter.toUpperCase() : "All"} (JSON)
             </button>
           </div>
         </div>
@@ -192,6 +218,42 @@ export default function AxonAdminPage() {
               <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Avg Exchanges</p>
               <p className="mt-1 text-lg font-light text-[var(--color-text)]">{stats.avg_exchanges ?? "—"}</p>
             </div>
+          </div>
+        )}
+
+        {/* Version filter pills */}
+        {stats && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => changeVersion("all")}
+              className={`rounded-full px-3 py-1 text-[10px] uppercase tracking-wider border transition-colors ${
+                versionFilter === "all"
+                  ? "border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10"
+                  : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]"
+              }`}
+            >
+              All ({stats.v1_count + stats.v2_count})
+            </button>
+            <button
+              onClick={() => changeVersion("v1")}
+              className={`rounded-full px-3 py-1 text-[10px] uppercase tracking-wider border transition-colors ${
+                versionFilter === "v1"
+                  ? VERSION_COLORS.v1
+                  : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]"
+              }`}
+            >
+              v1 — Classic ({stats.v1_count})
+            </button>
+            <button
+              onClick={() => changeVersion("v2")}
+              className={`rounded-full px-3 py-1 text-[10px] uppercase tracking-wider border transition-colors ${
+                versionFilter === "v2"
+                  ? VERSION_COLORS.v2
+                  : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]"
+              }`}
+            >
+              v2 — Executor ({stats.v2_count})
+            </button>
           </div>
         )}
 
@@ -219,21 +281,27 @@ export default function AxonAdminPage() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`text-[10px] uppercase tracking-wider font-medium ${
-                          r.output_decision === "EXEC"
-                            ? "text-green-400"
-                            : r.output_decision === "PASS"
-                              ? "text-amber-400"
-                              : r.status === "running" || r.status === "pending"
-                                ? "text-[var(--color-accent)]"
-                                : r.status === "error"
-                                  ? "text-red-400"
-                                  : "text-[var(--color-text-muted)]"
-                        }`}
-                      >
-                        {r.output_decision ?? r.status}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className={`text-[10px] uppercase tracking-wider font-medium ${
+                            r.output_decision === "EXEC"
+                              ? "text-green-400"
+                              : r.output_decision === "PASS"
+                                ? "text-amber-400"
+                                : r.status === "running" || r.status === "pending"
+                                  ? "text-[var(--color-accent)]"
+                                  : r.status === "error"
+                                    ? "text-red-400"
+                                    : "text-[var(--color-text-muted)]"
+                          }`}
+                        >
+                          {r.output_decision ?? r.status}
+                        </span>
+                        {/* Version badge */}
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wider border ${VERSION_COLORS[r.version] ?? ""}`}>
+                          {r.version}
+                        </span>
+                      </div>
                       <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">
                         {r.exchange_count} ex.
                       </span>

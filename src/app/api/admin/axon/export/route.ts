@@ -7,11 +7,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const requestId = request.nextUrl.searchParams.get("request_id");
+  const { searchParams } = new URL(request.url);
+  const requestId = searchParams.get("request_id");
+  const version = searchParams.get("version"); // "v1" | "v2" | null
+
   const sql = getDb();
 
   if (requestId) {
-    // Export single AXON request
+    // Export single AXON request — no version filter needed
     const requests = await sql`
       SELECT * FROM axon_requests WHERE id = ${requestId}
     `;
@@ -23,7 +26,6 @@ export async function GET(request: NextRequest) {
       WHERE request_id = ${requestId}
       ORDER BY turn_number ASC, exchange_number ASC
     `;
-
     return NextResponse.json({
       request: requests[0],
       exchanges,
@@ -31,13 +33,36 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Export all AXON requests
-  const [requests, exchanges] = await Promise.all([
-    sql`SELECT * FROM axon_requests ORDER BY created_at ASC`,
-    sql`SELECT * FROM axon_exchanges ORDER BY turn_number ASC, exchange_number ASC`,
-  ]);
+  // Bulk export — optionally filtered by version
+  const requests = version === "v2"
+    ? await sql`
+        SELECT * FROM axon_requests r
+        WHERE EXISTS (
+          SELECT 1 FROM axon_exchanges e WHERE e.request_id = r.id AND e.agent = 'executor'
+        )
+        ORDER BY r.created_at ASC
+      `
+    : version === "v1"
+    ? await sql`
+        SELECT * FROM axon_requests r
+        WHERE NOT EXISTS (
+          SELECT 1 FROM axon_exchanges e WHERE e.request_id = r.id AND e.agent = 'executor'
+        )
+        ORDER BY r.created_at ASC
+      `
+    : await sql`SELECT * FROM axon_requests ORDER BY created_at ASC`;
 
-  // Nest exchanges inside their requests
+  const requestIds = requests.map((r) => r.id as string);
+
+  const exchanges = requestIds.length > 0
+    ? await sql`
+        SELECT * FROM axon_exchanges
+        WHERE request_id = ANY(${requestIds})
+        ORDER BY turn_number ASC, exchange_number ASC
+      `
+    : [];
+
+  // Nest exchanges inside requests
   const exchangesByRequest: Record<string, typeof exchanges> = {};
   for (const ex of exchanges) {
     const rid = ex.request_id as string;
@@ -53,6 +78,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     meta: {
       exportedAt: new Date().toISOString(),
+      version: version ?? "all",
       totalRequests: requests.length,
       totalExchanges: exchanges.length,
       execCount: requests.filter((r) => r.output_decision === "EXEC").length,
