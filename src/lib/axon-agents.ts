@@ -77,7 +77,7 @@ Be extremely concise in your framing. The tool result is the substance.`,
     name: "Resolver",
     model: "claude-opus-4-6",
     color: "#8a3a2a",
-    maxTokens: 800,
+    maxTokens: 1500,
     systemPrompt: `EpistemicGate — assess if confidence is sufficient to execute. Render verdict immediately if yes; otherwise name what's missing in one sentence. At exchange 10+, must output one of these exact formats:
 
 VERDICT: EXEC
