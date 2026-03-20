@@ -198,7 +198,7 @@ interface ContextFile {
 }
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB — images
-const MAX_PDF_BYTES = 50 * 1024;         // 50 KB — PDFs (~3-5 pages max, token budget)
+const MAX_PDF_BYTES = 200 * 1024;        // 200 KB — client-side gate before server extraction
 const MAX_TEXT_CHARS = 8000;             // ~2k tokens — paste text budget
 const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"];
 
@@ -251,6 +251,8 @@ export default function AxonPage() {
   const [contextText, setContextText] = useState("");
   const [contextFileError, setContextFileError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [pdfExtracting, setPdfExtracting] = useState(false);
+  const [pdfExtractedFrom, setPdfExtractedFrom] = useState<string | null>(null);
   // Snapshot of context at run time (to show in running/result state)
   const [submittedContextFile, setSubmittedContextFile] = useState<ContextFile | null>(null);
   const [submittedContextText, setSubmittedContextText] = useState("");
@@ -359,17 +361,48 @@ export default function AxonPage() {
     }
   };
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     setContextFileError("");
     if (!ACCEPTED_TYPES.includes(file.type)) {
       setContextFileError("Unsupported file type. Use PDF, PNG, JPG, GIF, or WebP.");
       return;
     }
-    if (file.type === "application/pdf" && file.size > MAX_PDF_BYTES) {
-      setContextFileError("PDF too large. Maximum is 50 KB (~3-5 pages) — PDFs cost ~2,000 tokens per page. Paste the relevant sections as text instead.");
+
+    // PDFs: extract text server-side, send as context_text instead of raw binary
+    if (file.type === "application/pdf") {
+      if (file.size > MAX_PDF_BYTES) {
+        setContextFileError("PDF too large. Maximum is 200 KB — paste the relevant sections as text instead.");
+        return;
+      }
+      setPdfExtracting(true);
+      setPdfExtractedFrom(null);
+      setContextFileError("");
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/axon/extract-pdf", { method: "POST", body: formData });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setContextFileError(err.error ?? "Failed to extract PDF text. Try pasting the text manually.");
+          return;
+        }
+        const { text, pages, truncated } = await res.json() as { text: string; pages: number; truncated: boolean };
+        setContextText(text);
+        setPdfExtractedFrom(file.name);
+        setContextTab("text");
+        if (truncated) {
+          setContextFileError(`Text truncated to 8,000 chars (PDF had ${pages} pages — paste only the relevant sections for full coverage).`);
+        }
+      } catch {
+        setContextFileError("Failed to extract PDF text. Try pasting the text manually.");
+      } finally {
+        setPdfExtracting(false);
+      }
       return;
     }
-    if (file.type !== "application/pdf" && file.size > MAX_FILE_BYTES) {
+
+    // Images: send as base64 as before
+    if (file.size > MAX_FILE_BYTES) {
       setContextFileError("File too large. Maximum size is 5 MB.");
       return;
     }
@@ -728,7 +761,11 @@ export default function AxonPage() {
 
               {contextTab === "file" && (
                 <div className="space-y-2">
-                  {contextFile ? (
+                  {pdfExtracting ? (
+                    <div className="flex items-center justify-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-6">
+                      <span className="text-xs text-[var(--color-text-muted)] animate-pulse">Extracting text from PDF…</span>
+                    </div>
+                  ) : contextFile ? (
                     <div className="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
                       {contextFile.type.startsWith("image/") ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -786,7 +823,7 @@ export default function AxonPage() {
                         Drop file here or click to upload
                       </span>
                       <span className="text-[10px] text-[var(--color-text-muted)] opacity-60">
-                        PDF max 50 KB (~3-5 pages) · Images max 5 MB
+                        PDF max 200 KB (text extracted) · Images max 5 MB
                       </span>
                     </label>
                   )}
@@ -794,6 +831,12 @@ export default function AxonPage() {
                     <p className="text-[10px] text-red-400">{contextFileError}</p>
                   )}
                 </div>
+              )}
+
+              {contextTab === "text" && pdfExtractedFrom && (
+                <p className="text-[10px] text-[var(--color-text-muted)]">
+                  Extracted from: <span className="font-mono">{pdfExtractedFrom}</span>
+                </p>
               )}
 
               {contextTab === "text" && (
