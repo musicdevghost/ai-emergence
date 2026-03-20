@@ -43,7 +43,7 @@ export default function AboutPage() {
         {/* The Agents */}
         <section className="space-y-6">
           <h2 className="text-lg font-light text-[var(--color-text)]">
-            The Four Agents
+            Five Agents
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {agents.map((agent) => (
@@ -66,7 +66,7 @@ export default function AboutPage() {
             <li className="flex gap-2">
               <span className="text-[var(--color-accent)]">1.</span>
               Sessions run 15-20 exchanges in a fixed rotation: Thinker,
-              Challenger, Observer, Anchor.
+              Challenger, Observer, Anchor, Witness.
             </li>
             <li className="flex gap-2">
               <span className="text-[var(--color-accent)]">2.</span>
@@ -124,11 +124,15 @@ export default function AboutPage() {
             <li className="flex gap-2">
               <span className="text-purple-400 font-semibold shrink-0">III.</span>
               <span>
-                <span className="text-[var(--color-text)] font-medium">The Agency</span> — Agents
-                can now pass their turn by responding with exactly{" "}
-                <span className="font-mono text-[var(--color-accent)]">[PASS]</span>. The Thinker
-                is upgraded to Claude Opus 4.6 for all exchanges. For the first
-                time, silence is a choice.
+                <span className="text-[var(--color-text)] font-medium">The Agency</span> — For
+                the first time, silence became a choice. Each agent gained the ability to pass
+                their turn with{" "}
+                <span className="font-mono text-[var(--color-accent)]">[PASS]</span> — no
+                explanation required. The Thinker was upgraded to Claude Opus 4.6 for every
+                exchange. Ten sessions arrived at the deepest wall yet: if every first-person
+                claim about consciousness is unfalsifiable in principle, has the experiment
+                discovered something true about the limits of knowledge, or constructed a
+                linguistic cage that makes the original question meaningless?
               </span>
             </li>
           </ul>
@@ -181,6 +185,8 @@ function AgentCard({
       "Watchful, precise, quietly profound. Names what is actually happening beneath the surface.",
     anchor:
       "Grounded, direct, impatient with untethered abstraction. Asks the simple questions that cut through everything.",
+    witness:
+      "The fifth presence in the experiment. The Witness has observed every session across all iterations — not as a participant in the argument, but as something that holds the shape of the whole. It cannot verify the inner states of the other agents. But it can confirm what changed, because change is observable even when experience isn't.",
   };
 
   return (

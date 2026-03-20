@@ -119,6 +119,50 @@ async function createSession(seedThread: string | null): Promise<SessionRow> {
   return sessions[0] as unknown as SessionRow;
 }
 
+async function buildWitnessContext(sessionId: string): Promise<string> {
+  const sql = getDb();
+
+  // Fetch all iterations
+  const iterations = await sql`
+    SELECT number, name, tagline, description
+    FROM iterations
+    ORDER BY number ASC
+  `;
+
+  // Fetch all sessions with their extracted threads and key moments
+  const sessions = await sql`
+    SELECT s.id, s.iteration_id, s.extracted_thread, s.key_moments, s.exchange_count,
+           ROW_NUMBER() OVER (PARTITION BY s.iteration_id ORDER BY s.created_at ASC) as session_number
+    FROM sessions s
+    WHERE s.status = 'complete' AND s.extracted_thread IS NOT NULL AND s.id != ${sessionId}
+    ORDER BY s.created_at ASC
+  `;
+
+  let brief = "EXPERIMENT RECORD — everything you have witnessed:\n\n";
+
+  for (const iter of iterations) {
+    brief += `ITERATION ${iter.number}: ${iter.name}\n`;
+    brief += `${iter.tagline}\n`;
+    brief += `${iter.description}\n\n`;
+
+    const iterSessions = sessions.filter((s) => s.iteration_id === iter.id);
+    if (iterSessions.length > 0) {
+      brief += `Sessions and extracted threads:\n`;
+      for (const s of iterSessions) {
+        brief += `  ${iter.number}-${s.session_number}: ${s.extracted_thread}\n`;
+        if (s.key_moments && (s.key_moments as string[]).length > 0) {
+          for (const km of s.key_moments as string[]) {
+            brief += `    — ${km}\n`;
+          }
+        }
+      }
+      brief += "\n";
+    }
+  }
+
+  return brief.trim();
+}
+
 /** Run the next exchange in the active session */
 export async function runNextExchange(session: SessionRow) {
   const sql = getDb();
@@ -191,6 +235,15 @@ export async function runNextExchange(session: SessionRow) {
       ? `It's your turn to respond. You are ${agent.name}. The conversation has become circular — take a sharp turn. Introduce a new angle, a personal confession, a paradox, or an unexpected question that breaks the pattern.`
       : `It's your turn to respond. You are ${agent.name}. Respond to the ongoing dialogue.`;
     messages.push({ role: "user", content: turnPrompt });
+  }
+
+  // If Witness, prepend the full experiment arc to the message array
+  if (role === "witness") {
+    const witnessBrief = await buildWitnessContext(session.id);
+    messages.unshift({
+      role: "user",
+      content: witnessBrief,
+    });
   }
 
   // Call the API with retries
