@@ -18,11 +18,15 @@
     "@types/react": "^19.2.14",
     "@vercel/blob": "^2.3.1",
     "next": "^16.1.6",
+    "pdf-parse": "^2.4.5",
     "postcss": "^8.5.8",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "resend": "^6.9.3",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/pdf-parse": "^1.1.5"
   }
 }
