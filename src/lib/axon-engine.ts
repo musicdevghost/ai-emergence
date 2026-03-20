@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { Sandbox } from "@e2b/code-interpreter";
 import { getDb } from "./db";
 import { callWithRetry } from "./claude";
 import { AXON_AGENTS, AXON_TURN_ORDER, type AxonRole } from "./axon-agents";
@@ -145,6 +146,77 @@ function buildTaskState(conversationHistory: ConversationTurn[]): string {
   return `\n[RECORDED STATE]\n${lines}\n`;
 }
 
+/** Execute web search or sandboxed code on behalf of the Executor agent. */
+async function runExecutor(
+  input: string,
+  priorExchanges: string,
+  conversationHistory: ConversationTurn[],
+  turnType: string
+): Promise<string> {
+  const client = new Anthropic({ timeout: 240_000, maxRetries: 0 });
+
+  const contextBlock = conversationHistory.length > 0
+    ? `Previous conversation:\n${buildHistoryString(conversationHistory)}\n\nCurrent task: ${input}`
+    : `Task: ${input}`;
+
+  const messages: Anthropic.MessageParam[] = [
+    {
+      role: "user",
+      content: `${contextBlock}[TURN TYPE: ${turnType}]\n\n${priorExchanges}\n\nYour turn. Decide whether to search, run code, or pass.`
+    }
+  ];
+
+  // First call: let executor decide and invoke tool
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1000,
+    system: AXON_AGENTS["executor"].systemPrompt,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tools: [{ type: "web_search_20250305", name: "web_search" }] as any,
+    messages,
+  });
+
+  // Check if executor passed
+  const textBlock = response.content.find(b => b.type === "text") as Anthropic.TextBlock | undefined;
+  if (textBlock && textBlock.text.trim() === "[PASS]") {
+    return "[PASS]";
+  }
+
+  // Check for web search tool use
+  const toolUseBlock = response.content.find(b => b.type === "tool_use") as Anthropic.ToolUseBlock | undefined;
+  if (toolUseBlock && toolUseBlock.name === "web_search") {
+    // Web search result is returned inline by Anthropic — extract text from response
+    const resultText = response.content
+      .filter(b => b.type === "text")
+      .map(b => (b as Anthropic.TextBlock).text)
+      .join("\n");
+    return `[WEB SEARCH RESULT]\n${resultText}`;
+  }
+
+  // Check if executor wants to run code (text contains code block)
+  const text = textBlock?.text ?? "";
+  const codeMatch = text.match(/```(?:python|javascript|js|py)?\n([\s\S]+?)```/);
+
+  if (codeMatch) {
+    const code = codeMatch[1];
+    try {
+      const sandbox = await Sandbox.create({ apiKey: process.env.E2B_API_KEY! });
+      const execution = await sandbox.runCode(code);
+      await sandbox.kill();
+
+      const output = execution.logs.stdout.join("\n") || execution.text || "No output";
+      const errors = execution.logs.stderr.join("\n");
+
+      return `[CODE EXECUTION RESULT]\nCode run:\n\`\`\`\n${code}\`\`\`\n\nOutput:\n${output}${errors ? `\n\nErrors:\n${errors}` : ""}`;
+    } catch (err) {
+      return `[CODE EXECUTION ERROR]\n${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  // Executor responded with text only (no tool, no code)
+  return text;
+}
+
 /** Run a single AXON exchange and persist it. Called once per process request. */
 export async function runOneAxonExchange(
   requestId: string,
@@ -165,6 +237,52 @@ export async function runOneAxonExchange(
   const turnType = classifyTurn(inputText, conversationHistory);
   const turnTypeNote = `[TURN TYPE: ${turnType}]`;
   const taskState = buildTaskState(conversationHistory);
+
+  // Executor short-circuits the normal callWithRetry flow — uses its own API call + tools
+  if (role === "executor") {
+    const priorExchangesText = previousExchanges
+      .map(ex => `[${AXON_AGENTS[ex.agent].name}]: ${ex.content}`)
+      .join("\n\n");
+
+    const executorOutput = await runExecutor(
+      inputText,
+      priorExchangesText,
+      conversationHistory,
+      turnType
+    );
+
+    const skipped = executorOutput.trim() === "[PASS]";
+    const newCount = exchangeNumber + 1;
+
+    await sql`
+      INSERT INTO axon_exchanges (request_id, exchange_number, agent, model, content, skipped, turn_number)
+      VALUES (${requestId}, ${exchangeNumber}, 'executor', 'claude-sonnet-4-6', ${executorOutput}, ${skipped}, ${currentTurnNumber})
+    `;
+
+    if (newCount >= MAX_EXCHANGES) {
+      const timeoutMsg = "Reasoning depth limit reached. Insufficient confidence to execute within available reasoning budget.";
+      await sql`
+        UPDATE axon_requests SET
+          exchange_count = ${newCount},
+          status = 'complete',
+          output_decision = 'PASS',
+          output_content = ${timeoutMsg},
+          confidence_level = 'low',
+          completed_at = now()
+        WHERE id = ${requestId}
+      `;
+      return { role, content: executorOutput, skipped, isComplete: true, decision: "PASS", finalContent: timeoutMsg };
+    }
+
+    await sql`
+      UPDATE axon_requests SET
+        exchange_count = ${newCount},
+        status = 'running'
+      WHERE id = ${requestId}
+    `;
+
+    return { role, content: executorOutput, skipped, isComplete: false };
+  }
 
   let messages: Anthropic.MessageParam[];
 

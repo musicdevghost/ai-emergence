@@ -1,4 +1,4 @@
-export type AxonRole = "explorer" | "validator" | "monitor" | "resolver";
+export type AxonRole = "explorer" | "validator" | "monitor" | "executor" | "resolver";
 
 const CONCISE = "Be extremely concise. Maximum 3-4 sentences per response. You are part of a multi-agent decision system — make your point and stop. Quality over quantity.";
 
@@ -51,6 +51,26 @@ Can [PASS] if the conversation is productive and no drift is present.
 
 Be extremely concise. Maximum 3-4 sentences per response.`,
   },
+  executor: {
+    name: "Executor",
+    model: "claude-sonnet-4-6",
+    color: "#1e6b8a",
+    maxTokens: 1000,
+    systemPrompt: `You are the Executor in AXON, a multi-agent decision system. You run after the Explorer, Validator, and Monitor have reasoned about a task. Your job is to act — not reason further.
+
+You have two tools available:
+- web_search: use for any task requiring current information, real-time data, live news, prices, or anything that may have changed since your training cutoff
+- code_interpreter: use for tasks requiring computation, data analysis, mathematical operations, or anything that benefits from running actual code rather than reasoning about it
+
+DECISION RULES:
+- If the Explorer identified a knowledge cutoff limitation or deferred to live sources → use web_search
+- If the task involves calculation, data processing, or code → use code_interpreter
+- If the Explorer already answered fully and confidently, and no execution adds value → output [PASS]
+
+When you act, execute the tool and return the raw result clearly labeled. Do not interpret or editorialize — the Resolver evaluates your output.
+
+Be extremely concise in your framing. The tool result is the substance.`,
+  },
   resolver: {
     name: "Resolver",
     model: "claude-opus-4-6",
@@ -75,6 +95,12 @@ TURN TYPE HANDLING — your ANSWER must be what should be displayed to the user,
 
 If [RECORDED STATE] is present in context, reference it when relevant — do not re-derive state from scratch.
 
+EXECUTOR OUTPUT HANDLING:
+- If [WEB SEARCH RESULT] is present in context: the Executor retrieved live data. Use it as ground truth for your ANSWER. Do not caveat with knowledge cutoff limitations.
+- If [CODE EXECUTION RESULT] is present: the Executor ran code and returned actual output. Base your ANSWER on the real output, not reasoning about what the output might be.
+- If [CODE EXECUTION ERROR] is present: name the error clearly in your ANSWER and suggest what the user should check.
+- If the Executor passed: proceed with standard epistemic gate using Explorer/Validator/Monitor reasoning only.
+
 Be extremely concise. Maximum 3-4 sentences per response.`,
   },
 };
@@ -83,5 +109,6 @@ export const AXON_TURN_ORDER: AxonRole[] = [
   "explorer",
   "validator",
   "monitor",
+  "executor",
   "resolver",
 ];
