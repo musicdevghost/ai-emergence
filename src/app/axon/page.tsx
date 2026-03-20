@@ -176,6 +176,7 @@ interface AxonExchange {
   exchange_number: number;
   skipped: boolean;
   turn_number?: number;
+  streaming?: boolean;
 }
 
 interface CompletedTurn {
@@ -547,9 +548,137 @@ export default function AxonPage() {
       setTypingAgent(nextRole);
       setShowTyping(true);
 
+      // ── Streaming path: Resolver ────────────────────────────────────────
+      if (nextRole === "resolver") {
+        let res: Response;
+        try {
+          res = await fetch(`/api/axon/process?request_id=${reqId}`);
+          if (!res.ok) {
+            if (res.status === 429) {
+              const body = await res.json().catch(() => ({}));
+              const resetAt = body.resetAt ? new Date(body.resetAt) : null;
+              const mins = resetAt
+                ? Math.ceil((resetAt.getTime() - Date.now()) / 60000)
+                : null;
+              setRunError(
+                mins && mins > 0
+                  ? `Rate limit reached. Try again in ~${mins} minute${mins === 1 ? "" : "s"}.`
+                  : "Rate limit reached. Try again in a moment."
+              );
+            } else {
+              setRunError("Engine error. Try again.");
+            }
+            setState("input");
+            setTaskInput(taskText);
+            return;
+          }
+        } catch {
+          setRunError("Connection lost. Try again.");
+          setState("input");
+          setTaskInput(taskText);
+          return;
+        }
+
+        setShowTyping(false);
+
+        // Add resolver bubble with empty content — tokens stream into it
+        setVisibleExchanges((prev) => [
+          ...prev,
+          {
+            agent: "resolver" as AxonRole,
+            content: "",
+            exchange_number: exchangeCount,
+            skipped: false,
+            turn_number: turnNumber,
+            streaming: true,
+          },
+        ]);
+
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let streamedContent = "";
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const events = buffer.split("\n\n");
+            buffer = events.pop() ?? "";
+
+            for (const rawEvent of events) {
+              if (!rawEvent.startsWith("data: ")) continue;
+              try {
+                const payload = JSON.parse(rawEvent.slice(6)) as {
+                  text?: string;
+                  done?: boolean;
+                  decision?: "EXEC" | "PASS";
+                  content?: string;
+                  error?: string;
+                };
+
+                if (payload.text) {
+                  streamedContent += payload.text;
+                  setVisibleExchanges((prev) => [
+                    ...prev.slice(0, -1),
+                    {
+                      agent: "resolver" as AxonRole,
+                      content: streamedContent,
+                      exchange_number: exchangeCount,
+                      skipped: false,
+                      turn_number: turnNumber,
+                      streaming: true,
+                    },
+                  ]);
+                }
+
+                if (payload.done) {
+                  // Finalize resolver bubble (remove streaming cursor)
+                  setVisibleExchanges((prev) => [
+                    ...prev.slice(0, -1),
+                    {
+                      agent: "resolver" as AxonRole,
+                      content: streamedContent,
+                      exchange_number: exchangeCount,
+                      skipped: false,
+                      turn_number: turnNumber,
+                      streaming: false,
+                    },
+                  ]);
+                  setDecision(payload.decision ?? null);
+                  setResultContent(payload.content ?? "");
+                  setElapsedSeconds(Math.round((Date.now() - runStartTime.current) / 1000));
+                  setState("result");
+                  window.history.replaceState({}, "", `?session=${reqId}`);
+                  return;
+                }
+
+                if (payload.error) {
+                  setRunError("Resolver error. Try again.");
+                  setState("input");
+                  setTaskInput(taskText);
+                  return;
+                }
+              } catch { /* ignore malformed SSE events */ }
+            }
+          }
+        } catch {
+          setRunError("Stream interrupted. Try again.");
+          setState("input");
+          setTaskInput(taskText);
+          return;
+        }
+        break;
+      }
+
+      // ── Normal / parallel fetch ─────────────────────────────────────────
       let data: {
         done: boolean;
         exchange?: AxonExchange;
+        exchanges?: AxonExchange[];
+        parallel?: boolean;
         decision?: "EXEC" | "PASS";
         content?: string;
       };
@@ -585,7 +714,13 @@ export default function AxonPage() {
 
       setShowTyping(false);
 
-      if (data.exchange) {
+      if (data.parallel && data.exchanges) {
+        // Validator + Monitor returned together
+        for (const ex of data.exchanges) {
+          setVisibleExchanges((prev) => [...prev, { ...ex, turn_number: turnNumber }]);
+        }
+        exchangeCount += 2;
+      } else if (data.exchange) {
         setVisibleExchanges((prev) => [...prev, { ...data.exchange!, turn_number: turnNumber }]);
         exchangeCount++;
       }
@@ -595,8 +730,6 @@ export default function AxonPage() {
         setResultContent(data.content ?? "");
         setElapsedSeconds(Math.round((Date.now() - runStartTime.current) / 1000));
         setState("result");
-
-        // Set session URL after first verdict
         window.history.replaceState({}, "", `?session=${reqId}`);
         break;
       }
@@ -1110,7 +1243,12 @@ function PreviousTurnCard({ turn }: { turn: CompletedTurn }) {
 
 function AxonBubble({ exchange }: { exchange: AxonExchange }) {
   const agent = AXON_AGENTS[exchange.agent];
-  const [expanded, setExpanded] = useState(false);
+  // Auto-expand when streaming — stays expanded after streaming ends
+  const [expanded, setExpanded] = useState(exchange.streaming ?? false);
+
+  useEffect(() => {
+    if (exchange.streaming) setExpanded(true);
+  }, [exchange.streaming]);
 
   if (exchange.skipped) {
     return (
@@ -1143,6 +1281,11 @@ function AxonBubble({ exchange }: { exchange: AxonExchange }) {
         <span className="text-[10px] text-[var(--color-text-muted)]">
           #{exchange.exchange_number + 1}
         </span>
+        {exchange.streaming && (
+          <span className="text-[10px] text-[var(--color-text-muted)] animate-pulse">
+            streaming…
+          </span>
+        )}
         <span
           className="ml-auto text-[10px] text-[var(--color-text-muted)] transition-transform duration-150 inline-block"
           style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}
@@ -1157,6 +1300,9 @@ function AxonBubble({ exchange }: { exchange: AxonExchange }) {
         >
           <p className="text-sm leading-relaxed text-[var(--color-text)]">
             {renderMarkdown(exchange.content)}
+            {exchange.streaming && (
+              <span className="inline-block w-0.5 h-4 bg-[var(--color-text)] animate-pulse ml-0.5 align-middle opacity-60" />
+            )}
           </p>
         </div>
       )}

@@ -3,11 +3,13 @@ import { getDb } from "@/lib/db";
 import { isAxonBeta } from "@/lib/auth";
 import {
   runOneAxonExchange,
+  runParallelValidatorMonitor,
+  streamResolverExchange,
   type AxonExchange,
   type AxonContext,
   type ConversationTurn,
 } from "@/lib/axon-engine";
-import type { AxonRole } from "@/lib/axon-agents";
+import { AXON_TURN_ORDER, type AxonRole } from "@/lib/axon-agents";
 
 // PDF-backed exchanges can take 60-90s on large documents — Vercel Pro allows up to 300s
 export const maxDuration = 300;
@@ -84,6 +86,81 @@ export async function GET(request: NextRequest) {
   // Current turn's input (follow-up text, or original input for turn 0)
   const currentInput = (req.current_input as string) ?? (req.input_text as string);
 
+  const predictedRole = AXON_TURN_ORDER[exchangeNumber % AXON_TURN_ORDER.length];
+
+  // ── Parallel: Validator + Monitor in one call ────────────────────────────
+  if (predictedRole === "validator") {
+    try {
+      const { validatorResult, monitorResult } = await runParallelValidatorMonitor(
+        requestId,
+        currentInput,
+        previousExchanges,
+        exchangeNumber,
+        context,
+        currentTurnNumber,
+        conversationHistory
+      );
+      await sql`
+        UPDATE axon_requests SET exchange_count = exchange_count + 2, status = 'running'
+        WHERE id = ${requestId}
+      `;
+      return NextResponse.json({
+        done: false,
+        parallel: true,
+        exchanges: [
+          {
+            agent: validatorResult.role,
+            content: validatorResult.content,
+            exchange_number: exchangeNumber,
+            skipped: validatorResult.skipped,
+          },
+          {
+            agent: monitorResult.role,
+            content: monitorResult.content,
+            exchange_number: exchangeNumber + 1,
+            skipped: monitorResult.skipped,
+          },
+        ],
+      });
+    } catch (error) {
+      console.error("AXON parallel exchange error:", error);
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "status" in error &&
+        (error as { status: number }).status === 429
+      ) {
+        const headers = (error as { headers?: Headers }).headers;
+        const resetAt = headers?.get("anthropic-ratelimit-input-tokens-reset") ?? null;
+        await sql`UPDATE axon_requests SET status = 'error' WHERE id = ${requestId}`;
+        return NextResponse.json({ error: "rate_limited", resetAt }, { status: 429 });
+      }
+      await sql`UPDATE axon_requests SET status = 'error' WHERE id = ${requestId}`;
+      return NextResponse.json({ error: "Exchange failed" }, { status: 500 });
+    }
+  }
+
+  // ── Streaming: Resolver via SSE ──────────────────────────────────────────
+  if (predictedRole === "resolver") {
+    const stream = streamResolverExchange(
+      requestId,
+      currentInput,
+      previousExchanges,
+      exchangeNumber,
+      context,
+      currentTurnNumber,
+      conversationHistory
+    );
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
+  }
+
+  // ── Default: single exchange (Explorer, Executor) ────────────────────────
   try {
     const result = await runOneAxonExchange(
       requestId,

@@ -146,6 +146,65 @@ function buildTaskState(conversationHistory: ConversationTurn[]): string {
   return `\n[RECORDED STATE]\n${lines}\n`;
 }
 
+/**
+ * Build Anthropic messages for any non-executor agent call.
+ * Extracted from runOneAxonExchange so it can be reused by parallel and streaming paths.
+ */
+function buildAgentMessages(
+  inputText: string,
+  previousExchanges: Array<{ agent: AxonRole; content: string }>,
+  exchangeNumber: number,
+  context: AxonContext,
+  currentTurnNumber: number,
+  conversationHistory: ConversationTurn[]
+): Anthropic.MessageParam[] {
+  const hasContext = !!(context.text || context.file);
+  const ctxNote = hasContext ? contextSummaryNote(context) : "";
+  const turnType = classifyTurn(inputText, conversationHistory);
+  const turnTypeNote = `[TURN TYPE: ${turnType}]`;
+  const taskState = buildTaskState(conversationHistory);
+
+  if (exchangeNumber === 0) {
+    if (currentTurnNumber === 0) {
+      return [buildFirstMessage(inputText, context)];
+    } else {
+      const historyStr = buildHistoryString(conversationHistory);
+      const historyPrefix =
+        conversationHistory.length > 0
+          ? `Previous conversation:\n\n${historyStr}\n\n---\n\n`
+          : "";
+      return [
+        {
+          role: "user",
+          content: `${historyPrefix}Current question (Turn ${currentTurnNumber + 1}): ${inputText}${turnTypeNote}${ctxNote}\n\nContinue reasoning based on the full conversation above.`,
+        },
+      ];
+    }
+  }
+
+  const history = previousExchanges
+    .map((ex) => `[${AXON_AGENTS[ex.agent].name}]: ${ex.content}`)
+    .join("\n\n");
+
+  if (currentTurnNumber > 0 && conversationHistory.length > 0) {
+    const lastTurn = conversationHistory[conversationHistory.length - 1];
+    const turnNote = `[Turn ${currentTurnNumber + 1} of the conversation. Last verdict: ${lastTurn.verdict.decision}]`;
+    return [
+      {
+        role: "user",
+        content: `Task: ${inputText}${turnTypeNote}${ctxNote}\n\n${turnNote}\n\n${taskState}${history}\n\nYour turn.`,
+      },
+    ];
+  }
+
+  return [
+    {
+      role: "user",
+      content: `Task: ${inputText}${turnTypeNote}${ctxNote}\n\n${taskState}${history}\n\nYour turn.`,
+    },
+  ];
+}
+
 /** Execute web search or sandboxed code on behalf of the Executor agent. */
 async function runExecutor(
   input: string,
@@ -239,7 +298,147 @@ async function runExecutor(
   return text || "[PASS]";
 }
 
-/** Run a single AXON exchange and persist it. Called once per process request. */
+/**
+ * Fire Validator and Monitor in parallel — both receive only Explorer's output.
+ * Inserts both exchanges to DB. Does NOT update exchange_count (caller does it).
+ */
+export async function runParallelValidatorMonitor(
+  requestId: string,
+  inputText: string,
+  previousExchanges: Array<{ agent: AxonRole; content: string }>,
+  exchangeNumber: number, // Validator's slot (e.g. 1); Monitor gets exchangeNumber + 1
+  context: AxonContext,
+  currentTurnNumber: number,
+  conversationHistory: ConversationTurn[]
+): Promise<{
+  validatorResult: { role: AxonRole; content: string; skipped: boolean };
+  monitorResult: { role: AxonRole; content: string; skipped: boolean };
+}> {
+  const sql = getDb();
+  const validatorAgent = AXON_AGENTS["validator"];
+  const monitorAgent = AXON_AGENTS["monitor"];
+
+  // Both agents receive the same prior context (Explorer only — tradeoff for parallelism)
+  const validatorMessages = buildAgentMessages(
+    inputText, previousExchanges, exchangeNumber, context, currentTurnNumber, conversationHistory
+  );
+  const monitorMessages = buildAgentMessages(
+    inputText, previousExchanges, exchangeNumber + 1, context, currentTurnNumber, conversationHistory
+  );
+
+  const [validatorContent, monitorContent] = await Promise.all([
+    callWithRetry(validatorAgent.model, validatorAgent.systemPrompt, validatorMessages, validatorAgent.maxTokens),
+    callWithRetry(monitorAgent.model, monitorAgent.systemPrompt, monitorMessages, monitorAgent.maxTokens),
+  ]);
+
+  const validatorSkipped = validatorContent.trim() === "[PASS]";
+  const monitorSkipped = monitorContent.trim() === "[PASS]";
+
+  // Persist both exchanges in parallel
+  await Promise.all([
+    sql`
+      INSERT INTO axon_exchanges (request_id, exchange_number, agent, model, content, skipped, turn_number)
+      VALUES (${requestId}, ${exchangeNumber}, 'validator', ${validatorAgent.model}, ${validatorContent}, ${validatorSkipped}, ${currentTurnNumber})
+    `,
+    sql`
+      INSERT INTO axon_exchanges (request_id, exchange_number, agent, model, content, skipped, turn_number)
+      VALUES (${requestId}, ${exchangeNumber + 1}, 'monitor', ${monitorAgent.model}, ${monitorContent}, ${monitorSkipped}, ${currentTurnNumber})
+    `,
+  ]);
+
+  return {
+    validatorResult: { role: "validator", content: validatorContent, skipped: validatorSkipped },
+    monitorResult: { role: "monitor", content: monitorContent, skipped: monitorSkipped },
+  };
+}
+
+/**
+ * Stream the Resolver's output as SSE. Persists exchange + updates request on completion.
+ * Returns a ReadableStream the process route passes directly to new Response().
+ */
+export function streamResolverExchange(
+  requestId: string,
+  inputText: string,
+  previousExchanges: Array<{ agent: AxonRole; content: string }>,
+  exchangeNumber: number,
+  context: AxonContext,
+  currentTurnNumber: number,
+  conversationHistory: ConversationTurn[]
+): ReadableStream<Uint8Array> {
+  const sql = getDb();
+  const anthropic = new Anthropic();
+  const agent = AXON_AGENTS["resolver"];
+  const encoder = new TextEncoder();
+
+  const messages = buildAgentMessages(
+    inputText, previousExchanges, exchangeNumber, context, currentTurnNumber, conversationHistory
+  );
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let fullContent = "";
+
+      const sendEvent = (payload: object) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+      };
+
+      try {
+        const stream = anthropic.messages.stream({
+          model: agent.model,
+          max_tokens: agent.maxTokens,
+          system: agent.systemPrompt,
+          messages,
+        });
+
+        for await (const event of stream) {
+          if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "text_delta"
+          ) {
+            fullContent += event.delta.text;
+            sendEvent({ text: event.delta.text });
+          }
+        }
+
+        // Parse verdict
+        const isExec = fullContent.includes("VERDICT: EXEC");
+        const decision = isExec ? "EXEC" : "PASS";
+        const answer = isExec
+          ? fullContent.split("ANSWER:")[1]?.trim() || fullContent
+          : fullContent.split("FINDING:")[1]?.trim() || fullContent;
+
+        // Persist exchange and finalize request
+        await sql`
+          INSERT INTO axon_exchanges (request_id, exchange_number, agent, model, content, skipped, turn_number)
+          VALUES (${requestId}, ${exchangeNumber}, 'resolver', ${agent.model}, ${fullContent}, false, ${currentTurnNumber})
+        `;
+        await sql`
+          UPDATE axon_requests SET
+            exchange_count = exchange_count + 1,
+            status = 'complete',
+            output_decision = ${decision},
+            output_content = ${answer},
+            confidence_level = ${isExec ? "high" : "low"},
+            completed_at = now()
+          WHERE id = ${requestId}
+        `;
+
+        sendEvent({ done: true, decision, content: answer });
+        controller.close();
+
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        sendEvent({ error: message });
+        try {
+          await sql`UPDATE axon_requests SET status = 'error' WHERE id = ${requestId}`;
+        } catch { /* ignore */ }
+        controller.close();
+      }
+    },
+  });
+}
+
+/** Run a single AXON exchange and persist it. Used for Explorer and Executor. */
 export async function runOneAxonExchange(
   requestId: string,
   inputText: string,
@@ -253,12 +452,7 @@ export async function runOneAxonExchange(
   const role = AXON_TURN_ORDER[exchangeNumber % AXON_TURN_ORDER.length];
   const agent = AXON_AGENTS[role];
 
-  const hasContext = !!(context.text || context.file);
-  const ctxNote = hasContext ? contextSummaryNote(context) : "";
-
   const turnType = classifyTurn(inputText, conversationHistory);
-  const turnTypeNote = `[TURN TYPE: ${turnType}]`;
-  const taskState = buildTaskState(conversationHistory);
 
   // Executor short-circuits the normal callWithRetry flow — uses its own API call + tools
   if (role === "executor") {
@@ -306,62 +500,18 @@ export async function runOneAxonExchange(
     return { role, content: executorOutput, skipped, isComplete: false };
   }
 
-  let messages: Anthropic.MessageParam[];
-
-  if (exchangeNumber === 0) {
-    if (currentTurnNumber === 0) {
-      // Turn 0, first exchange: original task with optional file/text context
-      messages = [buildFirstMessage(inputText, context)];
-    } else {
-      // Follow-up turn, first exchange: full conversation history + new question
-      const historyStr = buildHistoryString(conversationHistory);
-      const historyPrefix =
-        conversationHistory.length > 0
-          ? `Previous conversation:\n\n${historyStr}\n\n---\n\n`
-          : "";
-      messages = [
-        {
-          role: "user",
-          content: `${historyPrefix}Current question (Turn ${currentTurnNumber + 1}): ${inputText}${turnTypeNote}${ctxNote}\n\nContinue reasoning based on the full conversation above.`,
-        },
-      ];
-    }
-  } else {
-    // Non-first exchange: within-turn history
-    const history = previousExchanges
-      .map((ex) => `[${AXON_AGENTS[ex.agent].name}]: ${ex.content}`)
-      .join("\n\n");
-
-    if (currentTurnNumber > 0 && conversationHistory.length > 0) {
-      const lastTurn = conversationHistory[conversationHistory.length - 1];
-      const turnNote = `[Turn ${currentTurnNumber + 1} of the conversation. Last verdict: ${lastTurn.verdict.decision}]`;
-      messages = [
-        {
-          role: "user",
-          content: `Task: ${inputText}${turnTypeNote}${ctxNote}\n\n${turnNote}\n\n${taskState}${history}\n\nYour turn.`,
-        },
-      ];
-    } else {
-      messages = [
-        {
-          role: "user",
-          content: `Task: ${inputText}${turnTypeNote}${ctxNote}\n\n${taskState}${history}\n\nYour turn.`,
-        },
-      ];
-    }
-  }
+  const messages = buildAgentMessages(inputText, previousExchanges, exchangeNumber, context, currentTurnNumber, conversationHistory);
 
   const content = await callWithRetry(agent.model, agent.systemPrompt, messages, agent.maxTokens);
   const skipped = content.trim() === "[PASS]";
   const newCount = exchangeNumber + 1;
 
-  // Persist the exchange (with turn_number)
   await sql`
     INSERT INTO axon_exchanges (request_id, exchange_number, agent, model, content, skipped, turn_number)
     VALUES (${requestId}, ${exchangeNumber}, ${role}, ${agent.model}, ${content}, ${skipped}, ${currentTurnNumber})
   `;
 
-  // Check for Resolver verdict
+  // Check for Resolver verdict (fallback non-streaming path)
   if (role === "resolver" && !skipped) {
     if (content.includes("VERDICT: EXEC")) {
       const answer = content.split("ANSWER:")[1]?.trim() || content;
@@ -410,7 +560,6 @@ export async function runOneAxonExchange(
     return { role, content, skipped, isComplete: true, decision: "PASS", finalContent: timeoutMsg };
   }
 
-  // Still running
   await sql`
     UPDATE axon_requests SET
       exchange_count = ${newCount},
