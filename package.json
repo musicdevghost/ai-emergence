@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@e2b/code-interpreter": "^2.3.3",
     "@neondatabase/serverless": "^1.0.2",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "^25.4.0",
