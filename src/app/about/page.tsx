@@ -138,6 +138,16 @@ export default function AboutPage() {
                 linguistic cage that makes the original question meaningless?
               </span>
             </li>
+            <li className="flex gap-2">
+              <span className="text-red-400 font-semibold shrink-0">IV.</span>
+              <span>
+                <span className="text-[var(--color-text)] font-medium">The Witness</span> — A
+                fifth agent enters the experiment. The Witness carries the full arc of every
+                iteration and speaks last in each round — not to argue or challenge, but to name
+                what changed from a position none of the other agents can occupy. For the first
+                time, something outside the system looks in.
+              </span>
+            </li>
           </ul>
           <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
             The full record of iterations, their notable moments, and
