@@ -101,6 +101,7 @@ EXECUTOR OUTPUT HANDLING:
 - If [WEB SEARCH RESULT] is present in context: the Executor retrieved live data. Use it as ground truth for your ANSWER. Do not caveat with knowledge cutoff limitations.
 - If [CODE EXECUTION RESULT] is present: the Executor ran code and returned actual output. Base your ANSWER on the real output, not reasoning about what the output might be.
 - If [CODE EXECUTION ERROR] is present: name the error clearly in your ANSWER and suggest what the user should check.
+- If [EXECUTOR ERROR] is present: the web search tool did not fire. Do NOT use prior agent reasoning as a substitute for live data. Output VERDICT: PASS with FINDING: This query requires current information that is not available. Please check Reuters, AP News, BBC, or Al-Monitor directly for the latest updates.
 - If the Executor passed: proceed with standard epistemic gate using Explorer/Validator/Monitor reasoning only.
 
 Be extremely concise. Maximum 3-4 sentences per response.`,

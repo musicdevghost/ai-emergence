@@ -159,6 +159,11 @@ async function runExecutor(
     ? `Previous conversation:\n${buildHistoryString(conversationHistory)}\n\nCurrent task: ${input}`
     : `Task: ${input}`;
 
+  // Detect knowledge cutoff flag BEFORE the API call so we can force tool use
+  const explorerFlaggedCutoff = priorExchanges.toLowerCase().includes("knowledge cutoff") ||
+    priorExchanges.toLowerCase().includes("can't provide") ||
+    priorExchanges.toLowerCase().includes("cannot provide");
+
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
@@ -166,7 +171,7 @@ async function runExecutor(
     }
   ];
 
-  // First call: let executor decide and invoke tool
+  // First call: force web_search when Explorer flagged a cutoff, otherwise let executor decide
   // Retry loop mirrors callWithRetry — skip 429 (long window), retry 529 (overloaded) and others
   let response_: Anthropic.Message | null = null;
   const maxRetries = 3;
@@ -178,6 +183,8 @@ async function runExecutor(
         system: AXON_AGENTS["executor"].systemPrompt,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         tools: [{ type: "web_search_20250305", name: "web_search" }] as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tool_choice: (explorerFlaggedCutoff ? { type: "tool", name: "web_search" } : { type: "auto" }) as any,
         messages,
       }) as Anthropic.Message;
       break;
@@ -189,24 +196,6 @@ async function runExecutor(
     }
   }
   if (!response_) throw new Error("Executor: no response after retries");
-
-
-  // If model returned only text with no tool use and the query looks current-events-related,
-  // force a web search before proceeding
-  const hasToolUse = response_.content.some(b => b.type === "tool_use");
-  const hasText = response_.content.some(b => b.type === "text");
-
-  if (!hasToolUse && hasText) {
-    // Check if Explorer flagged a knowledge cutoff limitation in prior exchanges
-    const explorerFlaggedCutoff = priorExchanges.toLowerCase().includes("knowledge cutoff") ||
-      priorExchanges.toLowerCase().includes("can't provide") ||
-      priorExchanges.toLowerCase().includes("cannot provide");
-
-    if (explorerFlaggedCutoff) {
-      // Force a web search instead of accepting the hallucinated text
-      return "[EXECUTOR ERROR: Web search tool was not called despite current-events query. Resolver should treat this as a PASS and direct user to live sources.]";
-    }
-  }
 
   // Check if executor passed
   const textBlock = response_.content.find(b => b.type === "text") as Anthropic.TextBlock | undefined;
