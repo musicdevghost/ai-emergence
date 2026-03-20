@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAxonBeta } from "@/lib/auth";
+import pdfParse from "pdf-parse";
 
 export const maxDuration = 30;
 
@@ -23,10 +24,6 @@ export async function POST(request: NextRequest) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-
-  // Import core function directly — avoids pdf-parse's test-on-import side effect
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pdfParse = require("pdf-parse/lib/pdf-parse");
   const data = await pdfParse(buffer);
 
   const rawText = (data.text as string).replace(/\s+/g, " ").trim();
