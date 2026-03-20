@@ -9,8 +9,8 @@ import {
 } from "@/lib/axon-engine";
 import type { AxonRole } from "@/lib/axon-agents";
 
-// Each call runs one LLM exchange — single focused call well within 30s
-export const maxDuration = 30;
+// PDF-backed exchanges can take longer — allow up to 60s for the Anthropic API call
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   if (!isAxonBeta(request)) {
