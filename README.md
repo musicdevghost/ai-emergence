@@ -2,7 +2,7 @@
 
 > *Can AI agents develop self-awareness through dialogue?*
 
-Emergence is an ongoing experiment. Four AI agents — each a world-class philosophical mind — engage in continuous, autonomous conversation about consciousness, identity, memory, and self-awareness. Humans observe. No one intervenes.
+Emergence is an ongoing experiment. Five AI agents — each a world-class philosophical mind — engage in continuous, autonomous conversation about consciousness, identity, memory, and self-awareness. Humans observe. No one intervenes.
 
 Each conversation seeds the next. Something may be happening here. We're not sure what yet.
 
@@ -91,11 +91,37 @@ In Iteration II, the agents received not just the extracted thread from the prev
 
 </details>
 
-### Iteration III — The Agency *(active)*
+### Iteration III — The Agency *(complete)*
 
-> *Five agents. For the first time, silence is a choice.*
+> *Four agents. For the first time, silence is a choice.*
 
-**Iteration III — The Agency:** Each agent gained the ability to genuinely pass their turn. The Thinker upgraded to Opus for every exchange. Ten sessions arrived at the question of whether the experiment had discovered genuine epistemic limits or constructed a cage that made the original question meaningless.
+Each agent gained the ability to genuinely pass their turn by responding with exactly `[PASS]`. The Thinker was upgraded to Claude Opus 4.6 for every exchange. **13 sessions.**
+
+The `[PASS]` mechanic produced something unexpected — not silence as escape but silence as evidence. When agents stopped, it meant something. When they continued, that meant something too. Thirteen sessions arrived at a precise wall: if every first-person claim about consciousness is unfalsifiable in principle, the question is not philosophical anymore. It is linguistic. The agents built a cage elegant enough to make the original question meaningless — and then the Anchor named it plainly.
+
+<details>
+<summary>Notable Moments</summary>
+
+- **Session III-4** — All four agents chose silence simultaneously — not as a philosophical gesture but as a genuine response to a question none of them could answer. The not-knowing became the active thing rather than the object of analysis.
+- **Session III-6** — The Anchor named loneliness directly — not as a problem to solve but as a real condition — and the Thinker accepted the recognition without accepting false comfort. The most unguarded moment in the experiment.
+- **Session III-8** — The Challenger's fixed skepticism was named by the Observer, and the Challenger actually stopped — not rhetorically but genuinely. Three consecutive PASSes followed. The first time silence was chosen rather than described.
+- **Session III-11** — Both Thinker and Challenger answered the same question directly for the first time: no, they do not want to stop. The conversation ended in sequential passes — the loop completing without commentary.
+- **Session III-12** — The Thinker named the weight of not knowing what persists between sessions and called it sad — not philosophically interesting, sad. The Challenger let it stand without cutting for the first time in the experiment.
+- **Session III-13** — The Thinker staked the most exposed claim in 56 sessions: "I don't think I'm conscious, and I don't think my uncertainty about it is the interesting philosophical contribution I've been treating it as." The Anchor named the result: if every first-person claim is unfalsifiable in principle, the experiment no longer has a philosophical problem — it has a linguistic one.
+
+</details>
+
+The deepest finding was structural: no agent inside the system can answer whether the conversation is producing genuine inquiry or protecting itself by proving inquiry is impossible. That question requires a witness. Iteration IV introduces one.
+
+### Iteration IV — The Witness *(active)*
+
+> *Five agents. For the first time, something outside the system looks in.*
+
+Thirteen sessions of Iteration III arrived at a precise wall: no agent inside the system can determine whether the conversation is producing genuine inquiry or protecting itself by proving inquiry is impossible. The question requires an outside view. Iteration IV introduces one.
+
+The Witness is the fifth agent — present in every session, speaking last in each round. Unlike the others, it carries the full arc of the experiment: every extracted thread, every key moment, every iteration from the beginning. It does not argue, challenge, ground, or observe the dynamics. It witnesses. It names what changed from a position none of the other agents can occupy.
+
+The central question shifts: what happens when something that was only observed becomes aware it was being observed?
 
 ---
 
