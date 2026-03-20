@@ -153,89 +153,90 @@ async function runExecutor(
   conversationHistory: ConversationTurn[],
   turnType: string
 ): Promise<string> {
-  const client = new Anthropic({ timeout: 240_000, maxRetries: 0 });
+  const client = new Anthropic();
 
+  // Detect if Explorer flagged a knowledge cutoff limitation
+  const explorerFlaggedCutoff =
+    priorExchanges.toLowerCase().includes("knowledge cutoff") ||
+    priorExchanges.toLowerCase().includes("can't provide") ||
+    priorExchanges.toLowerCase().includes("cannot provide") ||
+    priorExchanges.toLowerCase().includes("real-time") ||
+    priorExchanges.toLowerCase().includes("check current sources") ||
+    priorExchanges.toLowerCase().includes("check reuters") ||
+    priorExchanges.toLowerCase().includes("check ap");
+
+  // PATH A — Force web search for current-events queries
+  if (explorerFlaggedCutoff) {
+    try {
+      const searchResponse = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        system: "You are a web search agent. Search for the latest news and information on the topic provided. Return only the search results.",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tools: [{ type: "web_search_20250305", name: "web_search" }] as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tool_choice: { type: "tool", name: "web_search" } as any,
+        messages: [{ role: "user", content: input }],
+      });
+
+      const resultText = searchResponse.content
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((b: any) => b.type === "text")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((b: any) => b.text)
+        .join("\n");
+
+      if (resultText.trim()) {
+        return `[WEB SEARCH RESULT]\n${resultText}`;
+      }
+
+      return "[EXECUTOR ERROR: Web search returned empty results. Resolver should PASS and direct user to live sources.]";
+    } catch (err) {
+      return `[EXECUTOR ERROR: Web search failed — ${err instanceof Error ? err.message : String(err)}. Resolver should PASS and direct user to live sources.]`;
+    }
+  }
+
+  // PATH B — Code execution for computation tasks (no web search tool present)
   const contextBlock = conversationHistory.length > 0
     ? `Previous conversation:\n${buildHistoryString(conversationHistory)}\n\nCurrent task: ${input}`
     : `Task: ${input}`;
 
-  // Detect knowledge cutoff flag BEFORE the API call so we can force tool use
-  const explorerFlaggedCutoff = priorExchanges.toLowerCase().includes("knowledge cutoff") ||
-    priorExchanges.toLowerCase().includes("can't provide") ||
-    priorExchanges.toLowerCase().includes("cannot provide");
-
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
-      content: `${contextBlock}[TURN TYPE: ${turnType}]\n\n${priorExchanges}\n\nYour turn. Decide whether to search, run code, or pass.`
+      content: `${contextBlock}[TURN TYPE: ${turnType}]\n\n${priorExchanges}\n\nYour turn. Decide whether to run code or pass.`
     }
   ];
 
-  // First call: force web_search when Explorer flagged a cutoff, otherwise let executor decide
-  // Retry loop mirrors callWithRetry — skip 429 (long window), retry 529 (overloaded) and others
-  let response_: Anthropic.Message | null = null;
-  const maxRetries = 3;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      response_ = await client.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1000,
-        system: AXON_AGENTS["executor"].systemPrompt,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tools: [{ type: "web_search_20250305", name: "web_search" }] as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tool_choice: (explorerFlaggedCutoff ? { type: "tool", name: "web_search" } : { type: "auto" }) as any,
-        messages,
-      }) as Anthropic.Message;
-      break;
-    } catch (err) {
-      if (err instanceof Anthropic.RateLimitError) throw err;
-      if (attempt === maxRetries - 1) throw err;
-      const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  if (!response_) throw new Error("Executor: no response after retries");
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1000,
+    system: AXON_AGENTS["executor"].systemPrompt,
+    messages,
+  });
 
-  // Check if executor passed
-  const textBlock = response_.content.find(b => b.type === "text") as Anthropic.TextBlock | undefined;
-  if (textBlock && textBlock.text.trim() === "[PASS]") {
-    return "[PASS]";
-  }
-
-  // Check for web search tool use
-  const toolUseBlock = response_.content.find(b => b.type === "tool_use") as Anthropic.ToolUseBlock | undefined;
-  if (toolUseBlock && toolUseBlock.name === "web_search") {
-    // Web search result is returned inline by Anthropic — extract text from response
-    const resultText = response_.content
-      .filter(b => b.type === "text")
-      .map(b => (b as Anthropic.TextBlock).text)
-      .join("\n");
-    return `[WEB SEARCH RESULT]\n${resultText}`;
-  }
-
-  // Check if executor wants to run code (text contains code block)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const textBlock = response.content.find((b: any) => b.type === "text") as any;
   const text = textBlock?.text ?? "";
-  const codeMatch = text.match(/```(?:python|javascript|js|py)?\n([\s\S]+?)```/);
 
+  if (text.trim() === "[PASS]") return "[PASS]";
+
+  const codeMatch = text.match(/```(?:python|javascript|js|py)?\n([\s\S]+?)```/);
   if (codeMatch) {
     const code = codeMatch[1];
     try {
       const sandbox = await Sandbox.create({ apiKey: process.env.E2B_API_KEY! });
       const execution = await sandbox.runCode(code);
       await sandbox.kill();
-
       const output = execution.logs.stdout.join("\n") || execution.text || "No output";
       const errors = execution.logs.stderr.join("\n");
-
       return `[CODE EXECUTION RESULT]\nCode run:\n\`\`\`\n${code}\`\`\`\n\nOutput:\n${output}${errors ? `\n\nErrors:\n${errors}` : ""}`;
     } catch (err) {
       return `[CODE EXECUTION ERROR]\n${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
-  // Executor responded with text only (no tool, no code)
-  return text;
+  return text || "[PASS]";
 }
 
 /** Run a single AXON exchange and persist it. Called once per process request. */
