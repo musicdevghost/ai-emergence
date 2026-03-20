@@ -197,7 +197,9 @@ interface ContextFile {
   size: number;
 }
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB — images
+const MAX_PDF_BYTES = 200 * 1024;        // 200 KB — PDFs (token budget)
+const MAX_TEXT_CHARS = 8000;             // ~2k tokens — paste text budget
 const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"];
 
 const EXAMPLE_TASKS = [
@@ -363,7 +365,11 @@ export default function AxonPage() {
       setContextFileError("Unsupported file type. Use PDF, PNG, JPG, GIF, or WebP.");
       return;
     }
-    if (file.size > MAX_FILE_BYTES) {
+    if (file.type === "application/pdf" && file.size > MAX_PDF_BYTES) {
+      setContextFileError("PDF too large. Maximum is 200 KB — paste the relevant text instead.");
+      return;
+    }
+    if (file.type !== "application/pdf" && file.size > MAX_FILE_BYTES) {
       setContextFileError("File too large. Maximum size is 5 MB.");
       return;
     }
@@ -780,7 +786,7 @@ export default function AxonPage() {
                         Drop file here or click to upload
                       </span>
                       <span className="text-[10px] text-[var(--color-text-muted)] opacity-60">
-                        Supports PDF and images · Max 5 MB
+                        PDF max 200 KB · Images max 5 MB
                       </span>
                     </label>
                   )}
@@ -797,10 +803,11 @@ export default function AxonPage() {
                     onChange={(e) => setContextText(e.target.value)}
                     placeholder="Paste any relevant text, code, data or notes..."
                     rows={6}
+                    maxLength={MAX_TEXT_CHARS}
                     className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)] transition-colors resize-none"
                   />
-                  <p className="text-[10px] text-[var(--color-text-muted)] text-right">
-                    {contextText.length.toLocaleString()} chars
+                  <p className={`text-[10px] text-right ${contextText.length >= MAX_TEXT_CHARS ? "text-red-400" : contextText.length > 7000 ? "text-yellow-500" : "text-[var(--color-text-muted)]"}`}>
+                    {contextText.length.toLocaleString()} / {MAX_TEXT_CHARS.toLocaleString()} chars
                   </p>
                 </div>
               )}
