@@ -167,19 +167,34 @@ async function runExecutor(
   ];
 
   // First call: let executor decide and invoke tool
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1000,
-    system: AXON_AGENTS["executor"].systemPrompt,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tools: [{ type: "web_search_20250305", name: "web_search" }] as any,
-    messages,
-  });
+  // Retry loop mirrors callWithRetry — skip 429 (long window), retry 529 (overloaded) and others
+  let response_: Anthropic.Message | null = null;
+  const maxRetries = 3;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      response_ = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        system: AXON_AGENTS["executor"].systemPrompt,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tools: [{ type: "web_search_20250305", name: "web_search" }] as any,
+        messages,
+      }) as Anthropic.Message;
+      break;
+    } catch (err) {
+      if (err instanceof Anthropic.RateLimitError) throw err;
+      if (attempt === maxRetries - 1) throw err;
+      const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  if (!response_) throw new Error("Executor: no response after retries");
+
 
   // If model returned only text with no tool use and the query looks current-events-related,
   // force a web search before proceeding
-  const hasToolUse = response.content.some(b => b.type === "tool_use");
-  const hasText = response.content.some(b => b.type === "text");
+  const hasToolUse = response_.content.some(b => b.type === "tool_use");
+  const hasText = response_.content.some(b => b.type === "text");
 
   if (!hasToolUse && hasText) {
     // Check if Explorer flagged a knowledge cutoff limitation in prior exchanges
@@ -194,16 +209,16 @@ async function runExecutor(
   }
 
   // Check if executor passed
-  const textBlock = response.content.find(b => b.type === "text") as Anthropic.TextBlock | undefined;
+  const textBlock = response_.content.find(b => b.type === "text") as Anthropic.TextBlock | undefined;
   if (textBlock && textBlock.text.trim() === "[PASS]") {
     return "[PASS]";
   }
 
   // Check for web search tool use
-  const toolUseBlock = response.content.find(b => b.type === "tool_use") as Anthropic.ToolUseBlock | undefined;
+  const toolUseBlock = response_.content.find(b => b.type === "tool_use") as Anthropic.ToolUseBlock | undefined;
   if (toolUseBlock && toolUseBlock.name === "web_search") {
     // Web search result is returned inline by Anthropic — extract text from response
-    const resultText = response.content
+    const resultText = response_.content
       .filter(b => b.type === "text")
       .map(b => (b as Anthropic.TextBlock).text)
       .join("\n");
