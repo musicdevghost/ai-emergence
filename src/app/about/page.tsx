@@ -55,6 +55,9 @@ export default function AboutPage() {
             <code className="font-mono text-[var(--color-accent)] text-[11px]">[PASS]</code>{" "}
             to genuinely skip their turn. No explanation required. Passing is logged and visible to observers.
           </p>
+          <p className="text-xs leading-relaxed text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg px-4 py-3">
+            The Witness joined in Iteration IV. Sessions from Iterations I–III contain four agents only.
+          </p>
         </section>
 
         {/* Methodology */}
