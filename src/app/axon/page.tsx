@@ -198,7 +198,7 @@ interface ContextFile {
 }
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB — images
-const MAX_PDF_BYTES = 200 * 1024;        // 200 KB — PDFs (token budget)
+const MAX_PDF_BYTES = 50 * 1024;         // 50 KB — PDFs (~3-5 pages max, token budget)
 const MAX_TEXT_CHARS = 8000;             // ~2k tokens — paste text budget
 const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"];
 
@@ -366,7 +366,7 @@ export default function AxonPage() {
       return;
     }
     if (file.type === "application/pdf" && file.size > MAX_PDF_BYTES) {
-      setContextFileError("PDF too large. Maximum is 200 KB — paste the relevant text instead.");
+      setContextFileError("PDF too large. Maximum is 50 KB (~3-5 pages) — PDFs cost ~2,000 tokens per page. Paste the relevant sections as text instead.");
       return;
     }
     if (file.type !== "application/pdf" && file.size > MAX_FILE_BYTES) {
@@ -786,7 +786,7 @@ export default function AxonPage() {
                         Drop file here or click to upload
                       </span>
                       <span className="text-[10px] text-[var(--color-text-muted)] opacity-60">
-                        PDF max 200 KB · Images max 5 MB
+                        PDF max 50 KB (~3-5 pages) · Images max 5 MB
                       </span>
                     </label>
                   )}
