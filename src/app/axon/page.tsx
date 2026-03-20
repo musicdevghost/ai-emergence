@@ -223,6 +223,12 @@ export default function AxonPage() {
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
+  // Waitlist
+  const [waitlistEmail, setWaitlistEmail] = useState("");
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistDone, setWaitlistDone] = useState(false);
+  const [waitlistError, setWaitlistError] = useState("");
+
   // Input
   const [taskInput, setTaskInput] = useState("");
 
@@ -799,6 +805,63 @@ export default function AxonPage() {
               {authLoading ? "Verifying..." : "Enter"}
             </button>
           </form>
+
+          {/* Waitlist */}
+          <div className="pt-4 border-t border-[var(--color-border)]">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3 text-center">
+              Request access
+            </p>
+            {waitlistDone ? (
+              <p className="text-xs text-center text-[var(--color-text-muted)] italic">
+                We got your email — we&apos;ll be in touch shortly.
+              </p>
+            ) : (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!waitlistEmail.trim()) return;
+                  setWaitlistLoading(true);
+                  setWaitlistError("");
+                  try {
+                    const res = await fetch("/api/axon/waitlist", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email: waitlistEmail.trim() }),
+                    });
+                    if (res.ok) {
+                      setWaitlistDone(true);
+                    } else {
+                      const d = await res.json();
+                      setWaitlistError(d.error ?? "Something went wrong");
+                    }
+                  } catch {
+                    setWaitlistError("Something went wrong");
+                  } finally {
+                    setWaitlistLoading(false);
+                  }
+                }}
+                className="flex gap-2"
+              >
+                <input
+                  type="email"
+                  value={waitlistEmail}
+                  onChange={(e) => setWaitlistEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-text-muted)] transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={waitlistLoading || !waitlistEmail.trim()}
+                  className="rounded border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-text-muted)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {waitlistLoading ? "…" : "Notify me"}
+                </button>
+              </form>
+            )}
+            {waitlistError && (
+              <p className="mt-2 text-xs text-red-400 text-center">{waitlistError}</p>
+            )}
+          </div>
         </div>
       </div>
     );

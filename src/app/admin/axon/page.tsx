@@ -39,6 +39,12 @@ interface AxonStats {
   v2_count: number;
 }
 
+interface WaitlistEntry {
+  id: number;
+  email: string;
+  created_at: string;
+}
+
 const SESSION_KEY = "admin_secret";
 
 const VERSION_COLORS = {
@@ -56,6 +62,7 @@ export default function AxonAdminPage() {
   const [exchanges, setExchanges] = useState<AxonExchange[]>([]);
   const [detail, setDetail] = useState<AxonRequest | null>(null);
   const [versionFilter, setVersionFilter] = useState<"all" | "v1" | "v2">("all");
+  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
 
   // Restore secret from sessionStorage on mount
   useEffect(() => {
@@ -71,6 +78,14 @@ export default function AxonAdminPage() {
       const data = await res.json();
       setRequests(data.requests);
       setStats(data.stats);
+    }
+  }, []);
+
+  const fetchWaitlist = useCallback(async (s: string) => {
+    const res = await fetch(`/api/axon/waitlist?secret=${s}`);
+    if (res.ok) {
+      const data = await res.json();
+      setWaitlist(data.waitlist ?? []);
     }
   }, []);
 
@@ -96,11 +111,12 @@ export default function AxonAdminPage() {
         setStats(data.stats);
         setAuthenticated(true);
         sessionStorage.setItem(SESSION_KEY, secret);
+        fetchWaitlist(secret);
       } else {
         alert("Invalid admin secret");
       }
     },
-    [secret]
+    [secret, fetchWaitlist]
   );
 
   // Auto-login if secret is in sessionStorage
@@ -115,6 +131,7 @@ export default function AxonAdminPage() {
             setRequests(data.requests);
             setStats(data.stats);
             setAuthenticated(true);
+            fetchWaitlist(saved);
           }
         })
         .catch(() => {});
@@ -256,6 +273,37 @@ export default function AxonAdminPage() {
             </button>
           </div>
         )}
+
+        {/* Waitlist */}
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+              Waitlist
+            </h2>
+            <span className="text-[10px] text-[var(--color-text-muted)]">
+              {waitlist.length} {waitlist.length === 1 ? "signup" : "signups"}
+            </span>
+          </div>
+          {waitlist.length === 0 ? (
+            <p className="text-[10px] text-[var(--color-text-muted)] italic py-2 text-center">
+              No signups yet
+            </p>
+          ) : (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {waitlist.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between gap-4 py-1.5 border-b border-[var(--color-border)]/50 last:border-0"
+                >
+                  <span className="text-sm text-[var(--color-text)]">{entry.email}</span>
+                  <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">
+                    {new Date(entry.created_at).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Request list + Detail */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
