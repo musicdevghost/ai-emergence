@@ -9,8 +9,8 @@ import {
 } from "@/lib/axon-engine";
 import type { AxonRole } from "@/lib/axon-agents";
 
-// PDF-backed exchanges can take longer — allow up to 60s for the Anthropic API call
-export const maxDuration = 60;
+// PDF-backed exchanges can take 60-90s on large documents — Vercel Pro allows up to 300s
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   if (!isAxonBeta(request)) {
