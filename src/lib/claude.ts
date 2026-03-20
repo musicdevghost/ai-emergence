@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-const anthropic = new Anthropic();
+// 240s per-attempt timeout — leaves headroom for one full retry within the 300s Vercel ceiling
+const anthropic = new Anthropic({ timeout: 240_000 });
 
 /** Call Anthropic API with exponential backoff retry. Supports multimodal content. */
 export async function callWithRetry(
