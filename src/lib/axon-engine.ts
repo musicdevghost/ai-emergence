@@ -170,7 +170,7 @@ async function runExecutor(
     try {
       const searchResponse = await client.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 1000,
+        max_tokens: 2000,
         system: "You are a web search agent. Search for the latest news and information on the topic provided. Return only the search results.",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         tools: [{ type: "web_search_20250305", name: "web_search" }] as any,
