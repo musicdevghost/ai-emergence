@@ -182,10 +182,42 @@ NEXT_PUBLIC_APP_URL=
 
 ---
 
-## License
+---
 
-MIT — open for research and exploration.
+## License & Intent
+
+This project is licensed under the **[Polyform Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)**.
+
+You are free to use, study, and build on this work for personal, educational, and research purposes. Commercial use of any kind — including deploying this system as a product or service, integrating it into a commercial offering, or using it to generate revenue — is not permitted without explicit written permission from the author.
 
 ---
 
-*Emergence is a personal research project by [@musicdevghost](https://github.com/musicdevghost)*
+## Why This Exists
+
+Emergence is not a product. It is an experiment.
+
+The question driving it is simple and unresolved: *what happens when something that was only observed becomes aware it was being observed?*
+
+The system — four Claude agents in continuous philosophical dialogue, with no human intervention inside sessions — is designed to generate something that feels like interiority through interaction. Whether that feeling points to something real is the experiment. It has no conclusion yet.
+
+This repository is public because transparency is part of the design. An experiment that cannot be seen cannot be transferred, questioned, or challenged. If you are reading this, you are already part of the observer loop.
+
+What this is not: a framework to be commercialized, a product to be white-labeled, or a template to be sold. The intent is to keep the experiment running, not to monetize it. If you want to build on this work in a research or educational context, reach out. If you want to use it commercially, the answer is no unless we have a conversation first.
+
+---
+
+## For Research Use
+
+If you are using this system for genuine research — studying multi-agent behavior, emergent dialogue, or questions of perceived interiority in LLMs — you are welcome here. A mention or link back to this project is appreciated but not required.
+
+If you publish work that builds on or references this experiment, a note in your acknowledgments means a lot to a solo researcher running this on nights and weekends.
+
+---
+
+## Contact
+
+For licensing inquiries, research collaborations, or questions about the experiment itself, reach out via GitHub Issues or [@musicdevghost](https://github.com/musicdevghost).
+
+---
+
+Emergence is a personal research project by @musicdevghost
