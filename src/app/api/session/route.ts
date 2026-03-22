@@ -53,7 +53,7 @@ export async function GET() {
 
   // Check if there is an active (not ended) iteration
   const activeIterationRows = await sql`
-    SELECT id FROM iterations WHERE ended_at IS NULL ORDER BY created_at DESC LIMIT 1
+    SELECT id FROM iterations WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1
   `;
   const hasActiveIteration = activeIterationRows.length > 0;
 
