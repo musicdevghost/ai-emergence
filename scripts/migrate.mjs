@@ -77,6 +77,8 @@ async function migrate() {
       flagged_count INTEGER DEFAULT 0
     )
   `;
+  await sql`ALTER TABLE exchanges ADD COLUMN IF NOT EXISTS pattern_departure BOOLEAN DEFAULT NULL`;
+  await sql`ALTER TABLE exchanges ADD COLUMN IF NOT EXISTS departure_note TEXT DEFAULT NULL`;
   console.log("  ✓ exchanges");
 
   // Subscribers
