@@ -51,9 +51,15 @@ export async function GET() {
     }
   }
 
+  // Check if there is an active (not ended) iteration
+  const activeIterationRows = await sql`
+    SELECT id FROM iterations WHERE ended_at IS NULL ORDER BY created_at DESC LIMIT 1
+  `;
+  const hasActiveIteration = activeIterationRows.length > 0;
+
   // If session is complete, include next_session_at for countdown timer
   let nextSessionAt = session.next_session_at || null;
-  if (session.status === "complete" && !nextSessionAt) {
+  if (session.status === "complete" && !nextSessionAt && hasActiveIteration) {
     // Legacy session without stored time — check if a newer session exists
     const newer = await sql`
       SELECT created_at FROM sessions
@@ -61,14 +67,16 @@ export async function GET() {
       ORDER BY created_at ASC LIMIT 1
     `;
     if (newer.length === 0) {
-      // No next session yet, estimate from completed_at + 3.5h
+      // Active iteration exists — next session is coming, estimate from completed_at + 3.5h
       const est = new Date(new Date(session.completed_at).getTime() + 3.5 * 60 * 60 * 1000);
       nextSessionAt = est.toISOString();
     }
   }
+  // If no active iteration: iteration was manually ended, nextSessionAt stays null
 
   return NextResponse.json({
     session: { ...session, next_session_at: nextSessionAt, iteration, prev_key_moments: prevKeyMoments },
     exchanges,
+    hasActiveIteration,
   });
 }

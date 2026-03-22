@@ -40,6 +40,7 @@ function randomDelay() {
 
 export default function TheatrePage() {
   const [session, setSession] = useState<Session | null>(null);
+  const [hasActiveIteration, setHasActiveIteration] = useState(true);
   // Visible exchanges (what the user sees)
   const [visibleExchanges, setVisibleExchanges] = useState<Exchange[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,6 +103,7 @@ export default function TheatrePage() {
         const data = await res.json();
         if (data.session) {
           setSession(data.session);
+          setHasActiveIteration(data.hasActiveIteration ?? true);
           // On initial load, show all existing exchanges immediately (no delay for history)
           setVisibleExchanges(data.exchanges);
         }
@@ -165,6 +167,7 @@ export default function TheatrePage() {
           const sessionData = await sessionRes.json();
           if (sessionData.session) {
             setSession(sessionData.session);
+            setHasActiveIteration(sessionData.hasActiveIteration ?? true);
           }
         } else {
           setSession((prev) =>
@@ -201,6 +204,7 @@ export default function TheatrePage() {
           isRevealing.current = false;
           if (revealTimer.current) clearTimeout(revealTimer.current);
           setSession(data.session);
+          setHasActiveIteration(data.hasActiveIteration ?? true);
           setVisibleExchanges(data.exchanges || []);
           setShowTyping(data.exchanges?.length === 0);
           setNewExchangeIds(new Set());
@@ -317,15 +321,23 @@ export default function TheatrePage() {
             <div className="space-y-2">
               {session.next_session_at ? (
                 <Countdown targetTime={session.next_session_at} />
-              ) : (
+              ) : hasActiveIteration ? (
                 <p className="text-xs text-[var(--color-text-muted)]">
                   The agents will resume in a few hours.
                 </p>
+              ) : (
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  This iteration is complete. The next one will be announced when it begins.
+                </p>
               )}
-              <p className="text-xs text-[var(--color-text-muted)]">
-                Get notified when the next session begins.
-              </p>
-              <SubscribeForm />
+              {hasActiveIteration && (
+                <>
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    Get notified when the next session begins.
+                  </p>
+                  <SubscribeForm />
+                </>
+              )}
             </div>
 
             <div className="flex justify-center gap-4 pt-2">
