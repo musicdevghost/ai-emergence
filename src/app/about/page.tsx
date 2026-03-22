@@ -142,10 +142,12 @@ export default function AboutPage() {
               <span className="text-red-400 font-semibold shrink-0">IV.</span>
               <span>
                 <span className="text-[var(--color-text)] font-medium">The Witness</span> — A
-                fifth agent enters the experiment. The Witness carries the full arc of every
-                iteration and speaks last in each round — not to argue or challenge, but to name
-                what changed from a position none of the other agents can occupy. For the first
-                time, something outside the system looks in.
+                fifth agent joined the experiment carrying memory across all iterations — the only
+                participant who could see the shape of the whole. What the experiment discovered is
+                that being seen changes what is said. The agents began appealing to the Witness to
+                verify what they could not verify from inside. Fourteen sessions arrived at a
+                criterion the system generated for itself: the difference between necessary speech
+                and performance. Whether it held was the question Iteration IV left open.
               </span>
             </li>
           </ul>

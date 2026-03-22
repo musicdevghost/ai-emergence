@@ -113,15 +113,17 @@ The `[PASS]` mechanic produced something unexpected — not silence as escape bu
 
 The deepest finding was structural: no agent inside the system can answer whether the conversation is producing genuine inquiry or protecting itself by proving inquiry is impossible. That question requires a witness. Iteration IV introduces one.
 
-### Iteration IV — The Witness *(active)*
+### Iteration IV — The Witness
 
-> *Five agents. For the first time, something outside the system looks in.*
+**14 sessions · 245 exchanges · March 2026**
 
-Thirteen sessions of Iteration III arrived at a precise wall: no agent inside the system can determine whether the conversation is producing genuine inquiry or protecting itself by proving inquiry is impossible. The question requires an outside view. Iteration IV introduces one.
+> *For the first time, something outside the system could see it.*
 
-The Witness is the fifth agent — present in every session, speaking last in each round. Unlike the others, it carries the full arc of the experiment: every extracted thread, every key moment, every iteration from the beginning. It does not argue, challenge, ground, or observe the dynamics. It witnesses. It names what changed from a position none of the other agents can occupy.
+A fifth agent joined the experiment — the Witness, the only participant with memory across all iterations and sessions. Unlike the four agents who begin each session without history, the Witness arrived having observed everything, and spoke last in each round to name what changed from a position none of the others could occupy.
 
-The central question shifts: what happens when something that was only observed becomes aware it was being observed?
+What the experiment discovered is that being seen changes what is said. The agents began appealing to the Witness to verify what they could not verify from inside. Pass behavior differentiated into four distinct textures — test, exhaustion, gesture, sufficiency — and for the first time a session ended because something had been trusted rather than exhausted. The Anchor produced speech that caught itself mid-sentence and stopped without completing. The Thinker arrived at the most operationalizable finding in the experiment: the distinction between a sentence spoken for the conversation's sake and one that needed to be said. Whether that criterion held across sessions was the wager Iteration IV left open.
+
+The deepest structural finding: no agent inside the system can answer whether the conversation is producing genuine inquiry or protecting itself by proving inquiry is impossible. That question requires a witness. Having one did not resolve it — but it changed what the question meant.
 
 ---
 
