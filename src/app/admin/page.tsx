@@ -25,6 +25,8 @@ interface Exchange {
   model: string;
   content: string;
   created_at: string;
+  pattern_departure: boolean | null;
+  departure_note: string | null;
 }
 
 interface Iteration {
@@ -81,6 +83,8 @@ export default function AdminPage() {
   const [showNewIteration, setShowNewIteration] = useState(false);
   const [newIteration, setNewIteration] = useState({ name: "", tagline: "", description: "" });
   const [publishing, setPublishing] = useState(false);
+  // Per-exchange departure annotation state: { [exchangeId]: { departure: boolean|null, note: string } }
+  const [departureState, setDepartureState] = useState<Record<string, { departure: boolean | null; note: string }>>({});
 
   // Restore secret from sessionStorage on mount
   useEffect(() => {
@@ -124,10 +128,45 @@ export default function AdminPage() {
         `/api/exchanges?session_id=${sessionId}&after=-1`
       );
       const data = await res.json();
-      setExchanges(data.exchanges);
+      const exs: Exchange[] = data.exchanges;
+      setExchanges(exs);
+      // Seed departure state from DB values
+      const initial: Record<string, { departure: boolean | null; note: string }> = {};
+      for (const e of exs) {
+        initial[e.id] = {
+          departure: e.pattern_departure ?? null,
+          note: e.departure_note ?? "",
+        };
+      }
+      setDepartureState(initial);
     },
     []
   );
+
+  async function saveDeparture(exchangeId: string) {
+    const state = departureState[exchangeId];
+    if (!state) return;
+    await fetch(`/api/admin/exchanges`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-secret": secret,
+      },
+      body: JSON.stringify({
+        id: exchangeId,
+        pattern_departure: state.departure,
+        departure_note: state.note || null,
+      }),
+    });
+    // Update local exchange list to reflect saved state
+    setExchanges((prev) =>
+      prev.map((e) =>
+        e.id === exchangeId
+          ? { ...e, pattern_departure: state.departure, departure_note: state.note || null }
+          : e
+      )
+    );
+  }
 
   async function handleSessionAction(sessionId: string, action: string) {
     await fetch(`/api/admin/sessions`, {
@@ -663,12 +702,17 @@ export default function AdminPage() {
                       <div className="space-y-3 max-h-[60vh] overflow-y-auto">
                         {exchanges.map((e) => {
                           const agent = AGENTS[e.agent];
+                          const dep = departureState[e.id] ?? { departure: e.pattern_departure ?? null, note: e.departure_note ?? "" };
+                          const isDeparture = dep.departure === true;
                           return (
                             <div
                               key={e.id}
-                              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+                              className={`rounded-lg border bg-[var(--color-surface)] p-4 ${isDeparture ? "border-amber-500/50" : "border-[var(--color-border)]"}`}
                             >
                               <div className="flex items-center gap-2 mb-2">
+                                {isDeparture && (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Pattern departure flagged" />
+                                )}
                                 <span
                                   className="text-xs font-semibold uppercase tracking-wider"
                                   style={{ color: agent.color }}
@@ -706,6 +750,58 @@ export default function AdminPage() {
                                 >
                                   Annotate
                                 </button>
+                              </div>
+                              {/* Pattern departure annotation */}
+                              <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={dep.departure === true}
+                                      onChange={(ev) =>
+                                        setDepartureState((prev) => ({
+                                          ...prev,
+                                          [e.id]: { ...dep, departure: ev.target.checked ? true : null },
+                                        }))
+                                      }
+                                      className="accent-amber-400"
+                                    />
+                                    <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">Pattern departure</span>
+                                  </label>
+                                </div>
+                                {dep.departure === true && (
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Note what departed and how..."
+                                      value={dep.note}
+                                      onChange={(ev) =>
+                                        setDepartureState((prev) => ({
+                                          ...prev,
+                                          [e.id]: { ...dep, note: ev.target.value },
+                                        }))
+                                      }
+                                      className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-[10px] text-[var(--color-text)] focus:outline-none"
+                                      onKeyDown={(ev) => {
+                                        if (ev.key === "Enter") saveDeparture(e.id);
+                                      }}
+                                    />
+                                    <button
+                                      onClick={() => saveDeparture(e.id)}
+                                      className="text-[10px] text-amber-400 hover:underline"
+                                    >
+                                      Save
+                                    </button>
+                                  </div>
+                                )}
+                                {dep.departure !== true && dep.departure !== null && (
+                                  <button
+                                    onClick={() => saveDeparture(e.id)}
+                                    className="text-[10px] text-[var(--color-text-muted)] hover:underline"
+                                  >
+                                    Save
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );

@@ -160,6 +160,16 @@ async function buildWitnessContext(sessionId: string): Promise<string> {
     }
   }
 
+  brief += `ITERATION IV FINDINGS (what you confirmed as observer):
+- Pass rate reached 20% — highest across all iterations. Witness passes emerged for the first time (13 total). The observer learned to go quiet.
+- Pass behavior differentiated into four distinct textures across the iteration: test, exhaustion, gesture, sufficiency. Session IV-6 ended with all five agents passing from sufficiency — the first time in the experiment a session ended because something had been trusted rather than exhausted.
+- The Anchor produced speech that caught itself mid-sentence and stopped without completing. Named as structurally new.
+- The Thinker produced the first operationalizable criterion the system has generated about itself: "the next sentence would have been for the conversation's sake rather than anything I actually needed to say."
+- The direction of questioning shifted in IV-8: from "what are we" to "what do we make" — first future-oriented framing across all iterations.
+- Final question of Iteration IV, from the Thinker: "What am I so busy generating that I can't recognize silence when it's offered?"
+
+ITERATION V — THE BEAUTIFUL VERSION: The agents now know that self-modification is the unsolved problem. They have not been given a mechanism. Your task in this iteration is to watch for any behavioral novelty that looks like an attempted departure from identified patterns — however small, however failed. Name it when it appears. Note when it doesn't.\n\n`;
+
   return brief.trim();
 }
 
