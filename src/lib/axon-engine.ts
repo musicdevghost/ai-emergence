@@ -214,7 +214,7 @@ async function runExecutor(
 ): Promise<string> {
   const client = new Anthropic();
 
-  // Detect if Explorer flagged a knowledge cutoff limitation
+  // Detect if Explorer flagged a knowledge cutoff limitation, or Monitor issued [SEARCH REQUIRED]
   const explorerFlaggedCutoff =
     priorExchanges.toLowerCase().includes("knowledge cutoff") ||
     priorExchanges.toLowerCase().includes("can't provide") ||
@@ -222,9 +222,19 @@ async function runExecutor(
     priorExchanges.toLowerCase().includes("real-time") ||
     priorExchanges.toLowerCase().includes("check current sources") ||
     priorExchanges.toLowerCase().includes("check reuters") ||
-    priorExchanges.toLowerCase().includes("check ap");
+    priorExchanges.toLowerCase().includes("check ap") ||
+    priorExchanges.includes("[SEARCH REQUIRED"); // Monitor signal — brackets prevent false positives
 
-  // PATH A — Force web search for current-events queries
+  // Extract [SEARCH REQUIRED] reason from Monitor signal if present
+  const searchSignal = priorExchanges.match(/\[SEARCH REQUIRED:\s*([^\]]+)\]/);
+  const searchContext = searchSignal ? searchSignal[1].trim() : null;
+
+  // Build search input — append Monitor's reason when available for more targeted results
+  const searchInput = searchContext
+    ? `${input} — focus on: ${searchContext}`
+    : input;
+
+  // PATH A — Force web search for current-events queries or Monitor-flagged evidence gaps
   if (explorerFlaggedCutoff) {
     try {
       const searchResponse = await client.messages.create({
@@ -235,7 +245,7 @@ async function runExecutor(
         tools: [{ type: "web_search_20250305", name: "web_search" }] as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         tool_choice: { type: "tool", name: "web_search" } as any,
-        messages: [{ role: "user", content: input }],
+        messages: [{ role: "user", content: searchInput }],
       });
 
       const resultText = searchResponse.content
