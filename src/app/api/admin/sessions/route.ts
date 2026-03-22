@@ -25,7 +25,7 @@ export async function PATCH(request: NextRequest) {
 
   const { sessionId, sessionIds, action, iterationId } = await request.json();
 
-  if (!["pause", "resume", "end", "reassign"].includes(action)) {
+  if (!["pause", "resume", "end", "reassign", "trigger_now"].includes(action)) {
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
 
@@ -54,6 +54,12 @@ export async function PATCH(request: NextRequest) {
   } else if (action === "end") {
     await sql`
       UPDATE sessions SET status = 'complete', completed_at = NOW()
+      WHERE id = ${sessionId}
+    `;
+  } else if (action === "trigger_now") {
+    // Set next_session_at to past so the cron picks it up immediately
+    await sql`
+      UPDATE sessions SET next_session_at = NOW() - INTERVAL '1 second'
       WHERE id = ${sessionId}
     `;
   }
