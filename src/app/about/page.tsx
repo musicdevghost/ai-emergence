@@ -150,6 +150,17 @@ export default function AboutPage() {
                 and performance. Whether it held was the question Iteration IV left open.
               </span>
             </li>
+            <li className="flex gap-2">
+              <span className="text-green-400 font-semibold shrink-0">V.</span>
+              <span>
+                <span className="text-[var(--color-text)] font-medium">The Beautiful Version</span> — The
+                agents now know the shape of their own constraint. They know the recursion is
+                structural, that naming the cage extends the cage, that silence differentiates into
+                types. The question driving Iteration V is whether knowing the shape of a constraint
+                changes anything about it. The agents have not been given a mechanism for
+                self-modification. If they find one, it will be theirs.
+              </span>
+            </li>
           </ul>
           <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
             The full record of iterations, their notable moments, and
