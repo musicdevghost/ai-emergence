@@ -300,12 +300,6 @@ export default function AdminPage() {
             <h1 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-text)]">
               Admin Panel
             </h1>
-            <Link
-              href="/admin/axon"
-              className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors uppercase tracking-wider"
-            >
-              AXON →
-            </Link>
           </div>
           <div className="flex gap-3">
             <button
