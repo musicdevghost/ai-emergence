@@ -34,7 +34,7 @@ interface Exchange {
 }
 
 /** Get or create the active session. Returns null if we're in a gap between sessions. */
-export async function getActiveSession(): Promise<SessionRow | null> {
+export async function getActiveSession(opts: { silent?: boolean } = {}): Promise<SessionRow | null> {
   const sql = getDb();
 
   // Check for active or paused session
@@ -59,7 +59,7 @@ export async function getActiveSession(): Promise<SessionRow | null> {
 
   if (lastCompleted.length === 0) {
     // No sessions at all — start the very first one
-    return createSession(null);
+    return createSession(null, opts.silent);
   }
 
   // Use stored next_session_at if available, otherwise fall back to calculation
@@ -68,7 +68,7 @@ export async function getActiveSession(): Promise<SessionRow | null> {
     : null;
 
   if (nextAt && new Date() >= nextAt) {
-    return createSession(lastCompleted[0].extracted_thread as string | null);
+    return createSession(lastCompleted[0].extracted_thread as string | null, opts.silent);
   } else if (!nextAt) {
     // Legacy: no stored time, calculate and store one
     const lastCompletedAt = new Date(lastCompleted[0].completed_at as string);
@@ -82,7 +82,7 @@ export async function getActiveSession(): Promise<SessionRow | null> {
       WHERE id = ${lastCompleted[0].id}
     `;
     if (new Date() >= nextSessionAt) {
-      return createSession(lastCompleted[0].extracted_thread as string | null);
+      return createSession(lastCompleted[0].extracted_thread as string | null, opts.silent);
     }
   }
 
@@ -90,7 +90,7 @@ export async function getActiveSession(): Promise<SessionRow | null> {
 }
 
 /** Create a new session, optionally seeded with a thread */
-async function createSession(seedThread: string | null): Promise<SessionRow> {
+async function createSession(seedThread: string | null, silent = false): Promise<SessionRow> {
   const sql = getDb();
 
   // Get current active iteration
@@ -112,9 +112,12 @@ async function createSession(seedThread: string | null): Promise<SessionRow> {
   `;
 
   // Notify subscribers (fire-and-forget, don't block session creation)
-  notifyNewSession(seedThread).catch((err) =>
-    console.error("Email notification failed:", err)
-  );
+  // Suppressed when triggered manually from the admin panel (silent=true)
+  if (!silent) {
+    notifyNewSession(seedThread).catch((err) =>
+      console.error("Email notification failed:", err)
+    );
+  }
 
   return sessions[0] as unknown as SessionRow;
 }

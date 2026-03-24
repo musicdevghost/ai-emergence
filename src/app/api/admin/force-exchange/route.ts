@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     `;
   }
 
-  const session = await getActiveSession();
+  const session = await getActiveSession({ silent: true });
 
   if (!session) {
     return NextResponse.json({ error: "Could not create or find a session" }, { status: 500 });
