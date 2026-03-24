@@ -162,9 +162,27 @@ async function buildWitnessContext(sessionId: string): Promise<string> {
     ORDER BY s.created_at ASC
   `;
 
+  // Lazy-add rejection_reason + admin_note columns if they don't exist yet
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS rejection_reason TEXT`;
+  await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS admin_note TEXT`;
+
   // Fetch confirmed hinges
   const confirmedHinges = await sql`
     SELECT content, source, created_at FROM hinges WHERE confirmed = TRUE ORDER BY created_at ASC
+  `;
+
+  // Fetch rejected hinges with reasons (so Witness learns what doesn't qualify)
+  const rejectedHinges = await sql`
+    SELECT content, rejection_reason FROM hinges
+    WHERE confirmed = FALSE AND rejection_reason IS NOT NULL
+    ORDER BY created_at DESC LIMIT 10
+  `;
+
+  // Fetch rejected proposals with admin notes
+  const rejectedProposals = await sql`
+    SELECT content, admin_note FROM proposals
+    WHERE status = 'rejected' AND admin_note IS NOT NULL
+    ORDER BY created_at DESC LIMIT 5
   `;
 
   let brief = "EXPERIMENT RECORD — everything you have witnessed:\n\n";
@@ -222,6 +240,24 @@ async function buildWitnessContext(sessionId: string): Promise<string> {
     brief += "\n";
   }
 
+  // Append rejected hinge proposals with reasons
+  if (rejectedHinges.length > 0) {
+    brief += "REJECTED HINGE PROPOSALS — your proposals that were not accepted as new ground. Do not restate these:\n";
+    for (const h of rejectedHinges as { content: string; rejection_reason: string }[]) {
+      brief += `  — "${h.content.substring(0, 150)}" → Rejected: ${h.rejection_reason}\n`;
+    }
+    brief += "\n";
+  }
+
+  // Append rejected proposals with admin notes
+  if (rejectedProposals.length > 0) {
+    brief += "REJECTED EXPERIMENT PROPOSALS — experiments the human reviewer declined:\n";
+    for (const p of rejectedProposals as { content: string; admin_note: string }[]) {
+      brief += `  — "${p.content.substring(0, 150)}" → Rejected: ${p.admin_note}\n`;
+    }
+    brief += "\n";
+  }
+
   return brief.trim();
 }
 
@@ -236,14 +272,15 @@ async function buildWitnessContext(sessionId: string): Promise<string> {
  *  - If nothing meaningful remains after stripping, treat as "[PASS]"
  */
 function scrubForContext(content: string): string {
-  if (content.includes("[PASS]")) return "[PASS]";
-
-  let scrubbed = content
-    .replace(/\[HINGE:[\s\S]*?\](?=\s|$)/g, "")
-    .replace(/\[PROPOSAL:[\s\S]*?\](?=\s|$)/g, "")
-    .trim();
-
-  return scrubbed.length >= 10 ? scrubbed : "[PASS]";
+  // If ANY signal is present, the whole turn is silence — no partial stripping.
+  if (
+    content.includes("[PASS]") ||
+    content.includes("[HINGE:") ||
+    content.includes("[PROPOSAL:")
+  ) {
+    return "[PASS]";
+  }
+  return content;
 }
 
 /** Run the next exchange in the active session */

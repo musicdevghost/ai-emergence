@@ -21,9 +21,12 @@ export async function GET(request: NextRequest) {
     )
   `;
 
+  // Lazy-add rejection_reason column
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS rejection_reason TEXT`;
+
   const hinges = await sql`
     SELECT h.id, h.content, h.confirmed, h.source, h.created_at,
-           h.session_id
+           h.session_id, h.rejection_reason
     FROM hinges h
     ORDER BY h.created_at ASC
   `;
@@ -37,21 +40,26 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id, confirmed, deleted } = await request.json();
+  const { id, confirmed, deleted, rejection_reason } = await request.json();
 
   if (!id) {
     return NextResponse.json({ error: "id required" }, { status: 400 });
   }
 
   const sql = getDb();
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS rejection_reason TEXT`;
 
   if (deleted === true) {
     await sql`DELETE FROM hinges WHERE id = ${id}`;
     return NextResponse.json({ ok: true, deleted: true });
   }
 
-  if (confirmed !== undefined) {
-    await sql`UPDATE hinges SET confirmed = ${confirmed} WHERE id = ${id}`;
+  // Reject with reason: store reason, keep confirmed=false
+  if (rejection_reason !== undefined) {
+    await sql`UPDATE hinges SET confirmed = FALSE, rejection_reason = ${rejection_reason} WHERE id = ${id}`;
+  } else if (confirmed !== undefined) {
+    // Confirming clears any prior rejection reason
+    await sql`UPDATE hinges SET confirmed = ${confirmed}, rejection_reason = NULL WHERE id = ${id}`;
   }
 
   const rows = await sql`SELECT * FROM hinges WHERE id = ${id}`;

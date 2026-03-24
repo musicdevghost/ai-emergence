@@ -62,6 +62,7 @@ interface Hinge {
   source: string;
   session_id: string | null;
   created_at: string;
+  rejection_reason: string | null;
 }
 
 interface Proposal {
@@ -70,6 +71,8 @@ interface Proposal {
   status: "pending" | "approved" | "rejected";
   session_id: string | null;
   created_at: string;
+  admin_note: string | null;
+  reviewed_at: string | null;
 }
 
 type AnalyticsRange = "1d" | "7d" | "30d" | "all";
@@ -161,6 +164,11 @@ export default function AdminPage() {
 
   const [hinges, setHinges] = useState<Hinge[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  // Reject-with-reason state: stores the id being rejected + the typed reason
+  const [rejectingHingeId, setRejectingHingeId] = useState<number | null>(null);
+  const [hingeRejectReason, setHingeRejectReason] = useState("");
+  const [rejectingProposalId, setRejectingProposalId] = useState<number | null>(null);
+  const [proposalRejectNote, setProposalRejectNote] = useState("");
   const [forcingExchange, setForcingExchange] = useState(false);
   const [lastForceResult, setLastForceResult] = useState<string | null>(null);
 
@@ -293,6 +301,30 @@ export default function AdminPage() {
       body: JSON.stringify({ id, confirmed }),
     });
     fetchHinges();
+  }
+
+  async function rejectHinge(id: number, reason: string) {
+    if (!reason.trim()) return;
+    await fetch("/api/admin/hinges", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+      body: JSON.stringify({ id, rejection_reason: reason.trim() }),
+    });
+    setRejectingHingeId(null);
+    setHingeRejectReason("");
+    fetchHinges();
+  }
+
+  async function rejectProposal(id: number, note: string) {
+    if (!note.trim()) return;
+    await fetch("/api/admin/proposals", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+      body: JSON.stringify({ id, status: "rejected", admin_note: note.trim() }),
+    });
+    setRejectingProposalId(null);
+    setProposalRejectNote("");
+    fetchProposals();
   }
 
   async function deleteHinge(id: number) {
@@ -847,7 +879,7 @@ export default function AdminPage() {
                 ) : (
                   <div className="space-y-2">
                     {hinges.map((h) => (
-                      <div key={h.id} className={`rounded-lg border p-3 ${h.confirmed ? "border-green-500/30 bg-green-500/5" : "border-[var(--color-border)] bg-[var(--color-surface)]"}`}>
+                      <div key={h.id} className={`rounded-lg border p-3 ${h.confirmed ? "border-green-500/30 bg-green-500/5" : h.rejection_reason ? "border-red-500/20 bg-red-500/5 opacity-70" : "border-[var(--color-border)] bg-[var(--color-surface)]"}`}>
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-[var(--color-text)] leading-relaxed">{h.content}</p>
@@ -855,7 +887,11 @@ export default function AdminPage() {
                               <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)]">{h.source}</span>
                               <span className="text-[9px] text-[var(--color-text-muted)]">{new Date(h.created_at).toLocaleDateString()}</span>
                               {h.confirmed && <span className="text-[9px] text-green-400 font-medium">● confirmed</span>}
+                              {!h.confirmed && h.rejection_reason && <span className="text-[9px] text-red-400 font-medium">● rejected</span>}
                             </div>
+                            {h.rejection_reason && (
+                              <p className="mt-1 text-[9px] text-red-400/70 italic">Reason: {h.rejection_reason}</p>
+                            )}
                           </div>
                           <div className="flex flex-col gap-1.5 shrink-0">
                             <button
@@ -864,9 +900,33 @@ export default function AdminPage() {
                             >
                               {h.confirmed ? "Unconfirm" : "Confirm"}
                             </button>
-                            <button onClick={() => deleteHinge(h.id)} className="text-[9px] text-red-400/60 hover:text-red-400 transition-colors">Delete</button>
+                            {!h.confirmed && (
+                              <button
+                                onClick={() => { setRejectingHingeId(h.id); setHingeRejectReason(""); }}
+                                className="text-[9px] px-2 py-0.5 rounded border border-red-400/30 text-red-400/70 hover:text-red-400 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            )}
+                            <button onClick={() => deleteHinge(h.id)} className="text-[9px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors">Delete</button>
                           </div>
                         </div>
+                        {/* Inline reject reason input */}
+                        {rejectingHingeId === h.id && (
+                          <div className="mt-2 flex gap-2 items-center">
+                            <input
+                              autoFocus
+                              type="text"
+                              placeholder="Rejection reason…"
+                              value={hingeRejectReason}
+                              onChange={(e) => setHingeRejectReason(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") rejectHinge(h.id, hingeRejectReason); if (e.key === "Escape") setRejectingHingeId(null); }}
+                              className="flex-1 bg-[var(--color-bg)] border border-red-400/30 rounded px-2 py-1 text-[10px] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-red-400/60"
+                            />
+                            <button onClick={() => rejectHinge(h.id, hingeRejectReason)} className="text-[9px] px-2 py-1 rounded border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors">Submit</button>
+                            <button onClick={() => setRejectingHingeId(null)} className="text-[9px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Cancel</button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -895,13 +955,39 @@ export default function AdminPage() {
                               <span className={`text-[9px] uppercase tracking-wider font-medium ${p.status === "approved" ? "text-green-400" : p.status === "rejected" ? "text-red-400" : "text-amber-400"}`}>{p.status}</span>
                               <span className="text-[9px] text-[var(--color-text-muted)]">{new Date(p.created_at).toLocaleDateString()}</span>
                             </div>
+                            {p.admin_note && (
+                              <p className="mt-1 text-[9px] text-red-400/70 italic">Reason: {p.admin_note}</p>
+                            )}
                           </div>
                           <div className="flex flex-col gap-1.5 shrink-0">
                             {p.status !== "approved" && <button onClick={() => updateProposalStatus(p.id, "approved")} className="text-[9px] px-2 py-0.5 rounded border border-green-500/40 text-green-400 hover:bg-green-500/10 transition-colors">Approve</button>}
-                            {p.status !== "rejected" && <button onClick={() => updateProposalStatus(p.id, "rejected")} className="text-[9px] px-2 py-0.5 rounded border border-red-400/30 text-red-400/70 hover:text-red-400 transition-colors">Reject</button>}
+                            {p.status !== "rejected" && (
+                              <button
+                                onClick={() => { setRejectingProposalId(p.id); setProposalRejectNote(""); }}
+                                className="text-[9px] px-2 py-0.5 rounded border border-red-400/30 text-red-400/70 hover:text-red-400 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            )}
                             {p.status === "rejected" && <button onClick={() => deleteProposal(p.id)} className="text-[9px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors">Delete</button>}
                           </div>
                         </div>
+                        {/* Inline reject note input */}
+                        {rejectingProposalId === p.id && (
+                          <div className="mt-2 flex gap-2 items-center">
+                            <input
+                              autoFocus
+                              type="text"
+                              placeholder="Rejection note…"
+                              value={proposalRejectNote}
+                              onChange={(e) => setProposalRejectNote(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") rejectProposal(p.id, proposalRejectNote); if (e.key === "Escape") setRejectingProposalId(null); }}
+                              className="flex-1 bg-[var(--color-bg)] border border-red-400/30 rounded px-2 py-1 text-[10px] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-red-400/60"
+                            />
+                            <button onClick={() => rejectProposal(p.id, proposalRejectNote)} className="text-[9px] px-2 py-1 rounded border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors">Submit</button>
+                            <button onClick={() => setRejectingProposalId(null)} className="text-[9px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Cancel</button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
