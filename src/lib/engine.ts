@@ -619,7 +619,8 @@ async function reviewPendingSignals(sessionId: string) {
       "claude-haiku-4-5-20251001",
       REVIEWER_SYSTEM_PROMPT,
       [{ role: "user", content: context }],
-      3
+      3,
+      1024
     );
   } catch (err) {
     console.error(`[reviewer] API call failed for session ${sessionId}:`, err);
@@ -741,13 +742,14 @@ async function callWithRetry(
   model: string,
   systemPrompt: string,
   messages: { role: "user" | "assistant"; content: string }[],
-  maxRetries = 3
+  maxRetries = 3,
+  maxTokens = 512
 ): Promise<string> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await anthropic.messages.create({
         model,
-        max_tokens: 512,
+        max_tokens: maxTokens,
         system: systemPrompt,
         messages,
       });

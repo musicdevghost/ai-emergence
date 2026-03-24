@@ -27,7 +27,8 @@ export async function GET(request: NextRequest) {
   await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewer_reason TEXT`;
 
   const proposals = await sql`
-    SELECT id, content, status, session_id, created_at, admin_note, reviewed_at
+    SELECT id, content, status, session_id, created_at, admin_note, reviewed_at,
+           reviewer_decision, reviewer_reason
     FROM proposals
     ORDER BY created_at DESC
   `;

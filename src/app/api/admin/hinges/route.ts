@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
 
   const hinges = await sql`
     SELECT h.id, h.content, h.confirmed, h.source, h.created_at,
-           h.session_id, h.rejection_reason
+           h.session_id, h.rejection_reason,
+           h.reviewer_decision, h.reviewer_reason
     FROM hinges h
     ORDER BY h.created_at ASC
   `;
