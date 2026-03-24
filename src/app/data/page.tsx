@@ -133,7 +133,7 @@ export default function DataPage() {
 
         <section className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
-            License: MIT — open for research and exploration.
+            License: Polyform Noncommercial 1.0.0 — free for research and personal use. Commercial use requires explicit permission from the author.
           </p>
         </section>
       </main>
