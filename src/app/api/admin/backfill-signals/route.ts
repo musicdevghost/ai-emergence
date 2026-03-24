@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     FROM exchanges e
     JOIN sessions s ON s.id = e.session_id
     WHERE s.iteration_id = 6
-      AND e.role = 'witness'
+      AND e.agent = 'witness'
     ORDER BY e.created_at ASC
   `;
 
