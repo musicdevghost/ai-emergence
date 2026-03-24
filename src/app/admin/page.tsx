@@ -161,7 +161,6 @@ export default function AdminPage() {
 
   const [hinges, setHinges] = useState<Hinge[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [migratingVI, setMigratingVI] = useState(false);
 
   /* ── Restore secret ── */
   useEffect(() => {
@@ -250,21 +249,6 @@ export default function AdminPage() {
       body: JSON.stringify({ exchangeId, sessionId: selectedSession, note: annotationNote }),
     });
     setAnnotationNote("");
-  }
-
-  async function runMigrateVI() {
-    if (!confirm("Run Iteration VI migration? This will update Iteration V, create VI, and insert seed hinges.")) return;
-    setMigratingVI(true);
-    try {
-      const res = await fetch("/api/admin/migrate-vi", { method: "POST", headers: { "x-admin-secret": secret } });
-      const data = await res.json();
-      if (res.ok) {
-        alert("Migration complete:\n" + data.log.join("\n"));
-        fetchIterations(); fetchHinges(); fetchProposals();
-      } else {
-        alert("Migration failed: " + JSON.stringify(data));
-      }
-    } catch { alert("Migration failed"); } finally { setMigratingVI(false); }
   }
 
   async function toggleHinge(id: number, confirmed: boolean) {
@@ -718,21 +702,12 @@ export default function AdminPage() {
           <div className="p-6 space-y-6 max-w-4xl">
             <div className="flex items-center justify-between">
               <SectionHeader title="Iterations" />
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={runMigrateVI}
-                  disabled={migratingVI}
-                  className="text-[10px] text-amber-400 hover:underline disabled:opacity-50"
-                >
-                  {migratingVI ? "Running…" : "Run VI Migration"}
-                </button>
-                <button
-                  onClick={() => setShowNewIteration(!showNewIteration)}
-                  className="text-[10px] text-[var(--color-accent)] hover:underline"
-                >
-                  {showNewIteration ? "Cancel" : "+ New Iteration"}
-                </button>
-              </div>
+              <button
+                onClick={() => setShowNewIteration(!showNewIteration)}
+                className="text-[10px] text-[var(--color-accent)] hover:underline"
+              >
+                {showNewIteration ? "Cancel" : "+ New Iteration"}
+              </button>
             </div>
 
             {showNewIteration && (
