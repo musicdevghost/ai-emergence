@@ -434,15 +434,22 @@ export default function ObservatoryPage() {
                                     Exchange #{ex.exchange_number + 1}
                                   </span>
                                 </div>
-                                {ex.skipped ? (
-                                  <div className="text-xs italic text-[var(--color-text-muted)] opacity-60 pl-4">
-                                    chose silence
-                                  </div>
-                                ) : (
-                                  <div className="text-sm leading-relaxed text-[var(--color-text)] pl-4">
-                                    {renderContent(ex.content)}
-                                  </div>
-                                )}
+                                {(() => {
+                                  const scrubbed = ex.content
+                                    .replace(/\[HINGE:[\s\S]*?\](?=\s|$)/g, "")
+                                    .replace(/\[PROPOSAL:[\s\S]*?\](?=\s|$)/g, "")
+                                    .trim();
+                                  const isSilent = ex.skipped || scrubbed.length === 0;
+                                  return isSilent ? (
+                                    <div className="text-xs italic text-[var(--color-text-muted)] opacity-60 pl-4">
+                                      chose silence
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm leading-relaxed text-[var(--color-text)] pl-4">
+                                      {renderContent(scrubbed)}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             );
                           })}

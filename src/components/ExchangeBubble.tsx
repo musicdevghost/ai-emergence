@@ -101,10 +101,10 @@ export function ExchangeBubble({
   const config = AGENTS[agent];
   const displayContent = scrubDisplayContent(content);
 
-  // Detect whether original content contained only signals (no prose after scrub)
-  const signalOnly = !skipped && displayContent.length === 0;
+  // Show "chose silence" for: explicit pass, skipped flag, or signal-only content
+  const isSilent = skipped || displayContent.length === 0;
 
-  if (skipped || signalOnly) {
+  if (isSilent) {
     return (
       <div className={`group px-4 py-2 ${isNew ? "line-fade" : ""}`}>
         <div className="flex items-center gap-2">
@@ -118,7 +118,7 @@ export function ExchangeBubble({
             #{exchangeNumber + 1}
           </span>
           <span className="text-[10px] italic text-[var(--color-text-muted)] opacity-60">
-            {signalOnly ? "named a hinge" : "chose silence"}
+            chose silence
           </span>
         </div>
       </div>
