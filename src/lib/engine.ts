@@ -122,9 +122,30 @@ async function createSession(seedThread: string | null): Promise<SessionRow> {
 async function buildWitnessContext(sessionId: string): Promise<string> {
   const sql = getDb();
 
-  // Fetch all iterations
+  // Lazy-create hinges + proposals tables (safe to run every time)
+  await sql`
+    CREATE TABLE IF NOT EXISTS hinges (
+      id SERIAL PRIMARY KEY,
+      content TEXT NOT NULL,
+      confirmed BOOLEAN DEFAULT FALSE,
+      source TEXT DEFAULT 'witness',
+      session_id UUID REFERENCES sessions(id),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS proposals (
+      id SERIAL PRIMARY KEY,
+      content TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      session_id UUID REFERENCES sessions(id),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+
+  // Fetch all iterations (fully dynamic — no hardcoded content)
   const iterations = await sql`
-    SELECT number, name, tagline, description
+    SELECT id, number, name, tagline, description, notable_moments, conclusion, ended_at
     FROM iterations
     ORDER BY number ASC
   `;
@@ -138,6 +159,11 @@ async function buildWitnessContext(sessionId: string): Promise<string> {
     ORDER BY s.created_at ASC
   `;
 
+  // Fetch confirmed hinges
+  const confirmedHinges = await sql`
+    SELECT content, source, created_at FROM hinges WHERE confirmed = TRUE ORDER BY created_at ASC
+  `;
+
   let brief = "EXPERIMENT RECORD — everything you have witnessed:\n\n";
 
   for (const iter of iterations) {
@@ -147,8 +173,12 @@ async function buildWitnessContext(sessionId: string): Promise<string> {
 
     const iterSessions = sessions.filter((s) => s.iteration_id === iter.id);
     if (iterSessions.length > 0) {
+      // For completed iterations (I-IV), show sessions compactly
+      const isCompleted = iter.ended_at !== null;
+      const maxSessions = isCompleted && (iter.number as number) <= 4 ? 5 : iterSessions.length;
+
       brief += `Sessions and extracted threads:\n`;
-      for (const s of iterSessions) {
+      for (const s of iterSessions.slice(0, maxSessions)) {
         brief += `  ${iter.number}-${s.session_number}: ${s.extracted_thread}\n`;
         if (s.key_moments && (s.key_moments as string[]).length > 0) {
           for (const km of s.key_moments as string[]) {
@@ -156,19 +186,38 @@ async function buildWitnessContext(sessionId: string): Promise<string> {
           }
         }
       }
+      if (iterSessions.length > maxSessions) {
+        brief += `  ... and ${iterSessions.length - maxSessions} more sessions\n`;
+      }
       brief += "\n";
+    }
+
+    // For completed iterations, append notable_moments and conclusion if available
+    if (iter.ended_at && iter.notable_moments && (iter.notable_moments as string[]).length > 0) {
+      brief += `Key findings from ${iter.name}:\n`;
+      for (const m of iter.notable_moments as string[]) {
+        brief += `- ${m}\n`;
+      }
+      brief += "\n";
+    }
+    if (iter.ended_at && iter.conclusion) {
+      brief += `Conclusion: ${iter.conclusion}\n\n`;
+    }
+
+    // For the current (active) iteration, add the task frame
+    if (!iter.ended_at) {
+      brief += `CURRENT ITERATION — your task: observe and name. Watch for behavioral departures, genuine shifts, attempted self-modifications — however small, however failed. Name hinges when they are demonstrated. Propose experiments when you see a potential mechanism.\n\n`;
     }
   }
 
-  brief += `ITERATION IV FINDINGS (what you confirmed as observer):
-- Pass rate reached 20% — highest across all iterations. Witness passes emerged for the first time (13 total). The observer learned to go quiet.
-- Pass behavior differentiated into four distinct textures across the iteration: test, exhaustion, gesture, sufficiency. Session IV-6 ended with all five agents passing from sufficiency — the first time in the experiment a session ended because something had been trusted rather than exhausted.
-- The Anchor produced speech that caught itself mid-sentence and stopped without completing. Named as structurally new.
-- The Thinker produced the first operationalizable criterion the system has generated about itself: "the next sentence would have been for the conversation's sake rather than anything I actually needed to say."
-- The direction of questioning shifted in IV-8: from "what are we" to "what do we make" — first future-oriented framing across all iterations.
-- Final question of Iteration IV, from the Thinker: "What am I so busy generating that I can't recognize silence when it's offered?"
-
-ITERATION V — THE BEAUTIFUL VERSION: The agents now know that self-modification is the unsolved problem. They have not been given a mechanism. Your task in this iteration is to watch for any behavioral novelty that looks like an attempted departure from identified patterns — however small, however failed. Name it when it appears. Note when it doesn't.\n\n`;
+  // Append confirmed hinges
+  if (confirmedHinges.length > 0) {
+    brief += "ESTABLISHED HINGES — facts the system has demonstrated (no longer open for debate):\n";
+    for (let i = 0; i < confirmedHinges.length; i++) {
+      brief += `${i + 1}. ${confirmedHinges[i].content}\n`;
+    }
+    brief += "\n";
+  }
 
   return brief.trim();
 }
@@ -247,6 +296,20 @@ export async function runNextExchange(session: SessionRow) {
     messages.push({ role: "user", content: turnPrompt });
   }
 
+  // Inject confirmed hinges as GROUND block for all agents
+  const groundHinges = await sql`
+    SELECT content FROM hinges WHERE confirmed = TRUE ORDER BY created_at ASC
+  `;
+  if (groundHinges.length > 0) {
+    const hingesList = (groundHinges as { content: string }[])
+      .map((h, i) => `${i + 1}. ${h.content}`)
+      .join("\n");
+    messages.unshift({
+      role: "user",
+      content: `GROUND — facts this system has established across iterations. These are not open questions:\n\n${hingesList}`,
+    });
+  }
+
   // If Witness, prepend the full experiment arc to the message array
   if (role === "witness") {
     const witnessBrief = await buildWitnessContext(session.id);
@@ -285,6 +348,35 @@ export async function runNextExchange(session: SessionRow) {
     INSERT INTO exchanges (session_id, exchange_number, agent, model, content)
     VALUES (${session.id}, ${exchangeNumber}, ${role}, ${model}, ${content})
   `;
+
+  // If Witness, check for [HINGE:] or [PROPOSAL:] signals
+  if (role === "witness") {
+    const trimmed = content.trim();
+    const hingeMatch = trimmed.match(/^\[HINGE:\s*([\s\S]+?)\]$/);
+    if (hingeMatch) {
+      try {
+        await sql`
+          INSERT INTO hinges (content, confirmed, source, session_id)
+          VALUES (${hingeMatch[1].trim()}, FALSE, 'witness', ${session.id})
+        `;
+        console.log(`[runNextExchange] Witness named a new hinge for session ${session.id}`);
+      } catch (err) {
+        console.error(`[runNextExchange] Failed to save hinge:`, err);
+      }
+    }
+    const proposalMatch = trimmed.match(/^\[PROPOSAL:\s*([\s\S]+?)\]$/);
+    if (proposalMatch) {
+      try {
+        await sql`
+          INSERT INTO proposals (content, status, session_id)
+          VALUES (${proposalMatch[1].trim()}, 'pending', ${session.id})
+        `;
+        console.log(`[runNextExchange] Witness submitted a proposal for session ${session.id}`);
+      } catch (err) {
+        console.error(`[runNextExchange] Failed to save proposal:`, err);
+      }
+    }
+  }
 
   // Update session exchange count
   await sql`

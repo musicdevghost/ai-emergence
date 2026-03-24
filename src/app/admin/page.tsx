@@ -86,6 +86,26 @@ export default function AdminPage() {
   // Per-exchange departure annotation state: { [exchangeId]: { departure: boolean|null, note: string } }
   const [departureState, setDepartureState] = useState<Record<string, { departure: boolean | null; note: string }>>({});
 
+  // Hinges + Proposals
+  interface Hinge {
+    id: number;
+    content: string;
+    confirmed: boolean;
+    source: string;
+    session_id: string | null;
+    created_at: string;
+  }
+  interface Proposal {
+    id: number;
+    content: string;
+    status: "pending" | "approved" | "rejected";
+    session_id: string | null;
+    created_at: string;
+  }
+  const [hinges, setHinges] = useState<Hinge[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [migratingVI, setMigratingVI] = useState(false);
+
   // Restore secret from sessionStorage on mount
   useEffect(() => {
     const saved = sessionStorage.getItem("admin_secret");
@@ -107,6 +127,22 @@ export default function AdminPage() {
     }
   }, [secret]);
 
+  const fetchHinges = useCallback(async () => {
+    const res = await fetch(`/api/admin/hinges`, { headers: { "x-admin-secret": secret } });
+    if (res.ok) {
+      const data = await res.json();
+      setHinges(data.hinges);
+    }
+  }, [secret]);
+
+  const fetchProposals = useCallback(async () => {
+    const res = await fetch(`/api/admin/proposals`, { headers: { "x-admin-secret": secret } });
+    if (res.ok) {
+      const data = await res.json();
+      setProposals(data.proposals);
+    }
+  }, [secret]);
+
   const fetchSessions = useCallback(async () => {
     const res = await fetch(`/api/admin/sessions?secret=${secret}`);
     if (res.ok) {
@@ -116,10 +152,12 @@ export default function AdminPage() {
       sessionStorage.setItem("admin_secret", secret);
       fetchIterations();
       fetchAnalytics(analyticsRange);
+      fetchHinges();
+      fetchProposals();
     } else {
       alert("Invalid admin secret");
     }
-  }, [secret, fetchIterations, fetchAnalytics, analyticsRange]);
+  }, [secret, fetchIterations, fetchAnalytics, analyticsRange, fetchHinges, fetchProposals]);
 
   const fetchExchanges = useCallback(
     async (sessionId: string) => {
@@ -195,6 +233,66 @@ export default function AdminPage() {
       }),
     });
     setAnnotationNote("");
+  }
+
+  async function runMigrateVI() {
+    if (!confirm("Run Iteration VI migration? This will update Iteration V, create VI, and insert seed hinges.")) return;
+    setMigratingVI(true);
+    try {
+      const res = await fetch("/api/admin/migrate-vi", {
+        method: "POST",
+        headers: { "x-admin-secret": secret },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Migration complete:\n" + data.log.join("\n"));
+        fetchIterations();
+        fetchHinges();
+        fetchProposals();
+      } else {
+        alert("Migration failed: " + JSON.stringify(data));
+      }
+    } catch (err) {
+      alert("Migration failed");
+    } finally {
+      setMigratingVI(false);
+    }
+  }
+
+  async function toggleHinge(id: number, confirmed: boolean) {
+    await fetch("/api/admin/hinges", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+      body: JSON.stringify({ id, confirmed }),
+    });
+    fetchHinges();
+  }
+
+  async function deleteHinge(id: number) {
+    await fetch("/api/admin/hinges", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+      body: JSON.stringify({ id, deleted: true }),
+    });
+    fetchHinges();
+  }
+
+  async function updateProposalStatus(id: number, status: "approved" | "rejected" | "pending") {
+    await fetch("/api/admin/proposals", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+      body: JSON.stringify({ id, status }),
+    });
+    fetchProposals();
+  }
+
+  async function deleteProposal(id: number) {
+    await fetch("/api/admin/proposals", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+      body: JSON.stringify({ id, deleted: true }),
+    });
+    fetchProposals();
   }
 
   async function createIteration() {
@@ -811,6 +909,154 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Hinges */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+              Hinges ({hinges.length})
+            </h2>
+            <div className="flex gap-3">
+              <span className="text-[10px] text-[var(--color-text-muted)]">
+                {hinges.filter((h) => h.confirmed).length} confirmed
+              </span>
+              <button
+                onClick={runMigrateVI}
+                disabled={migratingVI}
+                className="text-[10px] text-amber-400 hover:underline disabled:opacity-50"
+              >
+                {migratingVI ? "Running…" : "Run VI Migration"}
+              </button>
+            </div>
+          </div>
+          {hinges.length === 0 ? (
+            <p className="text-[10px] text-[var(--color-text-muted)] italic">
+              No hinges yet. Run the VI migration to seed initial hinges, or wait for the Witness to name one.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {hinges.map((h) => (
+                <div
+                  key={h.id}
+                  className={`rounded-lg border p-3 ${
+                    h.confirmed
+                      ? "border-green-500/30 bg-green-500/5"
+                      : "border-[var(--color-border)] bg-[var(--color-surface)]"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--color-text)] leading-relaxed">{h.content}</p>
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                        <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                          {h.source}
+                        </span>
+                        <span className="text-[9px] text-[var(--color-text-muted)]">
+                          {new Date(h.created_at).toLocaleDateString()}
+                        </span>
+                        {h.confirmed && (
+                          <span className="text-[9px] text-green-400 font-medium">● confirmed</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <button
+                        onClick={() => toggleHinge(h.id, !h.confirmed)}
+                        className={`text-[9px] px-2 py-0.5 rounded border transition-colors ${
+                          h.confirmed
+                            ? "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                            : "border-green-500/40 text-green-400 hover:bg-green-500/10"
+                        }`}
+                      >
+                        {h.confirmed ? "Unconfirm" : "Confirm"}
+                      </button>
+                      <button
+                        onClick={() => deleteHinge(h.id)}
+                        className="text-[9px] text-red-400/60 hover:text-red-400 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Proposals */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+              Proposals ({proposals.length})
+            </h2>
+            <span className="text-[10px] text-[var(--color-text-muted)]">
+              {proposals.filter((p) => p.status === "pending").length} pending
+            </span>
+          </div>
+          {proposals.length === 0 ? (
+            <p className="text-[10px] text-[var(--color-text-muted)] italic">
+              No proposals yet. The Witness can submit [PROPOSAL: ...] during a session.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {proposals.map((p) => (
+                <div
+                  key={p.id}
+                  className={`rounded-lg border p-3 ${
+                    p.status === "approved"
+                      ? "border-green-500/30 bg-green-500/5"
+                      : p.status === "rejected"
+                        ? "border-red-500/20 bg-red-500/5 opacity-60"
+                        : "border-amber-500/30 bg-amber-500/5"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--color-text)] leading-relaxed">{p.content}</p>
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                        <span className={`text-[9px] uppercase tracking-wider font-medium ${
+                          p.status === "approved" ? "text-green-400" : p.status === "rejected" ? "text-red-400" : "text-amber-400"
+                        }`}>
+                          {p.status}
+                        </span>
+                        <span className="text-[9px] text-[var(--color-text-muted)]">
+                          {new Date(p.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      {p.status !== "approved" && (
+                        <button
+                          onClick={() => updateProposalStatus(p.id, "approved")}
+                          className="text-[9px] px-2 py-0.5 rounded border border-green-500/40 text-green-400 hover:bg-green-500/10 transition-colors"
+                        >
+                          Approve
+                        </button>
+                      )}
+                      {p.status !== "rejected" && (
+                        <button
+                          onClick={() => updateProposalStatus(p.id, "rejected")}
+                          className="text-[9px] px-2 py-0.5 rounded border border-red-400/30 text-red-400/70 hover:text-red-400 transition-colors"
+                        >
+                          Reject
+                        </button>
+                      )}
+                      {p.status === "rejected" && (
+                        <button
+                          onClick={() => deleteProposal(p.id)}
+                          className="text-[9px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </main>
