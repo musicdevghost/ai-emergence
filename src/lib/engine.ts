@@ -349,13 +349,16 @@ export async function runNextExchange(session: SessionRow) {
   // Call the API with retries
   const content = await callWithRetry(model, agent.systemPrompt, messages);
 
-  // Check for [PASS] — agent chose to skip their turn
-  const isPassed = content.trim() === "[PASS]" || content.trim() === "";
+  // Check for [PASS] — agent chose to skip their turn.
+  // Match anywhere in content: the Witness may include commentary before [PASS].
+  // Store the raw content for admin visibility but mark skipped=true so the
+  // Observatory renders it as a pass and agents only see [PASS] via scrubForContext.
+  const isPassed = content.includes("[PASS]") || content.trim() === "";
   if (isPassed) {
     console.log(`[runNextExchange] ${role} passed their turn (exchange ${exchangeNumber})`);
     await sql`
       INSERT INTO exchanges (session_id, exchange_number, agent, model, content, skipped)
-      VALUES (${session.id}, ${exchangeNumber}, ${role}, ${model}, '[PASS]', true)
+      VALUES (${session.id}, ${exchangeNumber}, ${role}, ${model}, ${content}, true)
     `;
     await sql`
       UPDATE sessions SET exchange_count = exchange_count + 1 WHERE id = ${session.id}
