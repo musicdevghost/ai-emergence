@@ -425,7 +425,7 @@ export default function AdminPage() {
   /* ─── Derived counts for badges ────────────────────────────────────────── */
   const activeSession = sessions.find((s) => s.status === "active");
   const pendingProposals = proposals.filter((p) => p.status === "pending").length;
-  const unconfirmedHinges = hinges.filter((h) => !h.confirmed).length;
+  const unconfirmedHinges = hinges.filter((h) => !h.confirmed && !h.rejection_reason).length;
   const memoryBadge = pendingProposals + unconfirmedHinges;
 
   /* ─── Authenticated layout ─────────────────────────────────────────────── */
