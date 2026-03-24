@@ -20,9 +20,11 @@ export async function GET(request: NextRequest) {
     )
   `;
 
-  // Lazy-add admin_note + reviewed_at columns
+  // Lazy-add columns
   await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS admin_note TEXT`;
   await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP WITH TIME ZONE`;
+  await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewer_decision VARCHAR(20)`;
+  await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewer_reason TEXT`;
 
   const proposals = await sql`
     SELECT id, content, status, session_id, created_at, admin_note, reviewed_at

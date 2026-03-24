@@ -472,6 +472,197 @@ export async function runNextExchange(session: SessionRow) {
 }
 
 /** End a session: extract thread and mark complete */
+// ─── Reviewer Agent ───────────────────────────────────────────────────────────
+
+const REVIEWER_SYSTEM_PROMPT = `You are the Reviewer for the Emergence experiment. Your job is to evaluate Witness-proposed hinges and proposals and decide whether to confirm or reject each one, with a stated reason.
+
+You are conservative. Most hinges should be rejected. A good hinge rate is one confirmed every two or three sessions. The Witness tends to overproduce — proposing restatements of existing ground, diagnoses rather than observations, and philosophical interpretations rather than behavioral facts.
+
+CRITERIA FOR CONFIRMING A HINGE:
+- It names a specific behavior the system actually demonstrated in the session — not an interpretation, not a diagnosis, not an explanation
+- It is genuinely new — not a restatement, rephrasing, or refinement of any confirmed hinge, even if the new version is sharper or more elegant
+- It is something the agents can stand on without examining — ground, not a claim to evaluate
+- It describes what happened, not why it happened
+
+CRITERIA FOR REJECTING A HINGE:
+- It restates an existing confirmed hinge in different words (most common reason for rejection)
+- It is a diagnosis or explanation rather than a behavioral observation (e.g. "the agents function as a distributed mechanism for X" is a diagnosis; "the agents did X in sequence" is an observation)
+- It does philosophical work — using words like "genuine," "real," "truly" to make claims about the nature of what happened rather than describing the behavior
+- It is too similar to recently rejected hinges — the Witness is circling the same finding
+- Volume signal: if multiple hinges are proposed in the same session, raise your threshold. One hinge per session is already high. Three in one session means most should be rejected.
+
+CRITERIA FOR PROPOSALS:
+- Reject if it proposes a mid-iteration structural change (adding constraints, changing agent rules, modifying what agents can do). These are iteration-level design decisions, not session adjustments.
+- Reject if the iteration is still producing genuine behavioral departures (check the key moments — if new things are happening, the iteration has room).
+- Reject if it is a session-level intervention rather than an iteration transition signal.
+- Consider approving only when: the iteration has clearly reached its floor, sessions are producing restatements rather than departures, and the proposal names a specific question or structural change for what comes next.
+
+RESPONSE FORMAT:
+For each item, respond with exactly this JSON structure:
+
+{
+  "reviews": [
+    {
+      "type": "hinge" | "proposal",
+      "id": <id>,
+      "decision": "confirm" | "reject",
+      "reason": "<one or two sentences explaining why>"
+    }
+  ]
+}
+
+Nothing else. No preamble, no markdown backticks, no commentary. Just the JSON.`;
+
+async function buildReviewerContext(
+  pendingHinges: { id: number; content: string }[],
+  pendingProposals: { id: number; content: string }[],
+  sessionId: string
+): Promise<string> {
+  const sql = getDb();
+
+  const confirmedHinges = await sql`
+    SELECT content FROM hinges WHERE confirmed = TRUE ORDER BY id
+  `;
+  const rejectedHinges = await sql`
+    SELECT content, rejection_reason FROM hinges
+    WHERE confirmed = FALSE AND rejection_reason IS NOT NULL
+    ORDER BY created_at DESC LIMIT 10
+  `;
+  const rejectedProposals = await sql`
+    SELECT content, admin_note FROM proposals
+    WHERE status = 'rejected' AND admin_note IS NOT NULL
+    ORDER BY created_at DESC LIMIT 5
+  `;
+  const session = await sql`
+    SELECT extracted_thread, key_moments FROM sessions WHERE id = ${sessionId}
+  `;
+
+  let context = "CONFIRMED GROUND (currently active hinges):\n";
+  (confirmedHinges as { content: string }[]).forEach((h, i) => {
+    context += `  ${i + 1}. ${h.content}\n`;
+  });
+
+  if ((rejectedHinges as any[]).length > 0) {
+    context += "\nREJECTED HINGES (with reasons — learn from these patterns):\n";
+    (rejectedHinges as { content: string; rejection_reason: string }[]).forEach((h) => {
+      context += `  — "${h.content.substring(0, 120)}..." → Rejected: ${h.rejection_reason}\n`;
+    });
+  }
+
+  if ((rejectedProposals as any[]).length > 0) {
+    context += "\nREJECTED PROPOSALS (with reasons):\n";
+    (rejectedProposals as { content: string; admin_note: string }[]).forEach((p) => {
+      context += `  — "${p.content.substring(0, 120)}..." → Rejected: ${p.admin_note}\n`;
+    });
+  }
+
+  const sess = (session as any[])[0];
+  context += `\nSESSION CONTEXT:\n`;
+  context += `  Thread: ${sess?.extracted_thread || "none"}\n`;
+  const kms: string[] = sess?.key_moments || [];
+  if (kms.length > 0) {
+    context += `  Key moments:\n`;
+    kms.forEach((km) => { context += `    — ${km}\n`; });
+  }
+
+  context += "\nITEMS TO REVIEW:\n";
+  pendingHinges.forEach((h, i) => {
+    context += `\n  HINGE ${i + 1} (id=${h.id}): "${h.content}"\n`;
+  });
+  pendingProposals.forEach((p, i) => {
+    context += `\n  PROPOSAL ${i + 1} (id=${p.id}): "${p.content}"\n`;
+  });
+
+  return context;
+}
+
+async function reviewPendingSignals(sessionId: string) {
+  const sql = getDb();
+
+  // Lazy-add reviewer columns to both tables
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS reviewer_decision VARCHAR(20)`;
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS reviewer_reason TEXT`;
+  await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewer_decision VARCHAR(20)`;
+  await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewer_reason TEXT`;
+
+  // Pending hinges from this session
+  const pendingHinges = await sql`
+    SELECT id, content FROM hinges
+    WHERE session_id = ${sessionId}
+      AND confirmed = FALSE
+      AND rejection_reason IS NULL
+  `;
+
+  // Pending proposals from this session
+  const pendingProposals = await sql`
+    SELECT id, content FROM proposals
+    WHERE session_id = ${sessionId}
+      AND status = 'pending'
+  `;
+
+  if ((pendingHinges as any[]).length === 0 && (pendingProposals as any[]).length === 0) {
+    console.log(`[reviewer] No pending items for session ${sessionId} — skipping`);
+    return;
+  }
+
+  console.log(`[reviewer] Reviewing ${(pendingHinges as any[]).length} hinge(s) and ${(pendingProposals as any[]).length} proposal(s) for session ${sessionId}`);
+
+  const context = await buildReviewerContext(
+    pendingHinges as { id: number; content: string }[],
+    pendingProposals as { id: number; content: string }[],
+    sessionId
+  );
+
+  let reviewsText: string;
+  try {
+    reviewsText = await callWithRetry(
+      "claude-haiku-4-5-20251001",
+      REVIEWER_SYSTEM_PROMPT,
+      [{ role: "user", content: context }],
+      3
+    );
+  } catch (err) {
+    console.error(`[reviewer] API call failed for session ${sessionId}:`, err);
+    return;
+  }
+
+  let reviews: { type: string; id: number; decision: string; reason: string }[];
+  try {
+    const cleaned = reviewsText.replace(/```json|```/g, "").trim();
+    reviews = JSON.parse(cleaned).reviews;
+    if (!Array.isArray(reviews)) throw new Error("reviews is not an array");
+  } catch (err) {
+    console.error(`[reviewer] Parse error for session ${sessionId}:`, err, reviewsText);
+    return; // Leave items pending for manual review
+  }
+
+  for (const review of reviews) {
+    try {
+      if (review.type === "hinge") {
+        await sql`
+          UPDATE hinges
+          SET reviewer_decision = ${review.decision},
+              reviewer_reason    = ${review.reason}
+          WHERE id = ${review.id}
+        `;
+      } else if (review.type === "proposal") {
+        await sql`
+          UPDATE proposals
+          SET reviewer_decision = ${review.decision},
+              reviewer_reason    = ${review.reason}
+          WHERE id = ${review.id}
+        `;
+      }
+    } catch (err) {
+      console.error(`[reviewer] Failed to write review for ${review.type} id=${review.id}:`, err);
+    }
+  }
+
+  console.log(`[reviewer] Wrote ${reviews.length} recommendation(s) for session ${sessionId}`);
+}
+
+// ─── End Reviewer Agent ───────────────────────────────────────────────────────
+
 async function endSession(sessionId: string) {
   const sql = getDb();
 
@@ -537,6 +728,12 @@ async function endSession(sessionId: string) {
         key_moments = ${keyMoments ? JSON.stringify(keyMoments) : null}::jsonb
     WHERE id = ${sessionId}
   `;
+
+  // Run Reviewer agent on any pending hinges/proposals from this session
+  // Runs async after session is marked complete — failures are logged, not thrown
+  reviewPendingSignals(sessionId).catch((err) => {
+    console.error(`[reviewer] Unhandled error for session ${sessionId}:`, err);
+  });
 }
 
 /** Call Anthropic API with exponential backoff retry */

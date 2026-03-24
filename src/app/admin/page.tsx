@@ -63,6 +63,8 @@ interface Hinge {
   session_id: string | null;
   created_at: string;
   rejection_reason: string | null;
+  reviewer_decision: "confirm" | "reject" | null;
+  reviewer_reason: string | null;
 }
 
 interface Proposal {
@@ -73,6 +75,8 @@ interface Proposal {
   created_at: string;
   admin_note: string | null;
   reviewed_at: string | null;
+  reviewer_decision: "confirm" | "reject" | null;
+  reviewer_reason: string | null;
 }
 
 type AnalyticsRange = "1d" | "7d" | "30d" | "all";
@@ -892,6 +896,17 @@ export default function AdminPage() {
                             {h.rejection_reason && (
                               <p className="mt-1 text-[9px] text-red-400/70 italic">Reason: {h.rejection_reason}</p>
                             )}
+                            {/* Reviewer recommendation — only shown on pending items */}
+                            {!h.confirmed && !h.rejection_reason && h.reviewer_decision && (
+                              <div className={`mt-2 rounded px-2 py-1.5 border ${h.reviewer_decision === "confirm" ? "border-green-500/30 bg-green-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+                                <p className={`text-[9px] font-medium uppercase tracking-wider ${h.reviewer_decision === "confirm" ? "text-green-400" : "text-amber-400"}`}>
+                                  Reviewer: {h.reviewer_decision === "confirm" ? "✓ Confirm" : "✕ Reject"}
+                                </p>
+                                {h.reviewer_reason && (
+                                  <p className="mt-0.5 text-[9px] text-[var(--color-text-muted)] leading-relaxed">{h.reviewer_reason}</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <div className="flex flex-col gap-1.5 shrink-0">
                             <button
@@ -965,6 +980,17 @@ export default function AdminPage() {
                             </div>
                             {p.admin_note && (
                               <p className="mt-1 text-[9px] text-red-400/70 italic">Reason: {p.admin_note}</p>
+                            )}
+                            {/* Reviewer recommendation — only shown on pending items */}
+                            {p.status === "pending" && p.reviewer_decision && (
+                              <div className={`mt-2 rounded px-2 py-1.5 border ${p.reviewer_decision === "confirm" ? "border-green-500/30 bg-green-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+                                <p className={`text-[9px] font-medium uppercase tracking-wider ${p.reviewer_decision === "confirm" ? "text-green-400" : "text-amber-400"}`}>
+                                  Reviewer: {p.reviewer_decision === "confirm" ? "✓ Approve" : "✕ Reject"}
+                                </p>
+                                {p.reviewer_reason && (
+                                  <p className="mt-0.5 text-[9px] text-[var(--color-text-muted)] leading-relaxed">{p.reviewer_reason}</p>
+                                )}
+                              </div>
                             )}
                           </div>
                           <div className="flex flex-col gap-1.5 shrink-0">

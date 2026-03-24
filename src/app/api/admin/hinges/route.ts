@@ -21,8 +21,10 @@ export async function GET(request: NextRequest) {
     )
   `;
 
-  // Lazy-add rejection_reason column
+  // Lazy-add columns
   await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS rejection_reason TEXT`;
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS reviewer_decision VARCHAR(20)`;
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS reviewer_reason TEXT`;
 
   const hinges = await sql`
     SELECT h.id, h.content, h.confirmed, h.source, h.created_at,
@@ -48,6 +50,8 @@ export async function PATCH(request: NextRequest) {
 
   const sql = getDb();
   await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS rejection_reason TEXT`;
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS reviewer_decision VARCHAR(20)`;
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS reviewer_reason TEXT`;
 
   if (deleted === true) {
     await sql`DELETE FROM hinges WHERE id = ${id}`;
