@@ -350,26 +350,28 @@ export async function runNextExchange(session: SessionRow) {
   `;
 
   // If Witness, check for [HINGE:] or [PROPOSAL:] signals
+  // Signals are embedded inside a longer response — no ^ or $ anchors.
+  // Use matchAll + g flag to capture every occurrence in one exchange.
   if (role === "witness") {
-    const trimmed = content.trim();
-    const hingeMatch = trimmed.match(/^\[HINGE:\s*([\s\S]+?)\]$/);
-    if (hingeMatch) {
+    const hingeMatches = [...content.matchAll(/\[HINGE:\s*([\s\S]+?)\]/g)];
+    for (const match of hingeMatches) {
       try {
         await sql`
           INSERT INTO hinges (content, confirmed, source, session_id)
-          VALUES (${hingeMatch[1].trim()}, FALSE, 'witness', ${session.id})
+          VALUES (${match[1].trim()}, FALSE, 'witness', ${session.id})
         `;
         console.log(`[runNextExchange] Witness named a new hinge for session ${session.id}`);
       } catch (err) {
         console.error(`[runNextExchange] Failed to save hinge:`, err);
       }
     }
-    const proposalMatch = trimmed.match(/^\[PROPOSAL:\s*([\s\S]+?)\]$/);
-    if (proposalMatch) {
+
+    const proposalMatches = [...content.matchAll(/\[PROPOSAL:\s*([\s\S]+?)\]/g)];
+    for (const match of proposalMatches) {
       try {
         await sql`
           INSERT INTO proposals (content, status, session_id)
-          VALUES (${proposalMatch[1].trim()}, 'pending', ${session.id})
+          VALUES (${match[1].trim()}, 'pending', ${session.id})
         `;
         console.log(`[runNextExchange] Witness submitted a proposal for session ${session.id}`);
       } catch (err) {
