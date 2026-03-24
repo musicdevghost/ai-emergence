@@ -589,19 +589,21 @@ async function reviewPendingSignals(sessionId: string) {
   await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewer_decision VARCHAR(20)`;
   await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewer_reason TEXT`;
 
-  // Pending hinges from this session
+  // Pending hinges from this session that haven't been reviewed yet
   const pendingHinges = await sql`
     SELECT id, content FROM hinges
     WHERE session_id = ${sessionId}
       AND confirmed = FALSE
       AND rejection_reason IS NULL
+      AND reviewer_decision IS NULL
   `;
 
-  // Pending proposals from this session
+  // Pending proposals from this session that haven't been reviewed yet
   const pendingProposals = await sql`
     SELECT id, content FROM proposals
     WHERE session_id = ${sessionId}
       AND status = 'pending'
+      AND reviewer_decision IS NULL
   `;
 
   if ((pendingHinges as any[]).length === 0 && (pendingProposals as any[]).length === 0) {
