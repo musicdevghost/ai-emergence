@@ -945,7 +945,7 @@ export default function AdminPage() {
             {/* Proposals tab */}
             {memoryTab === "proposals" && (
               <div className="space-y-3">
-                <p className="text-[10px] text-[var(--color-text-muted)]">{pendingProposals} pending · {proposals.filter((p) => p.status === "approved").length} approved</p>
+                <p className="text-[10px] text-[var(--color-text-muted)]">{pendingProposals} pending · {proposals.filter((p) => p.status === "approved").length} approved · {proposals.filter((p) => p.status === "rejected").length} rejected</p>
                 {proposals.length === 0 ? (
                   <p className="text-xs text-[var(--color-text-muted)] italic">No proposals yet. The Witness can submit [PROPOSAL: ...] during a session.</p>
                 ) : (
@@ -968,8 +968,9 @@ export default function AdminPage() {
                             )}
                           </div>
                           <div className="flex flex-col gap-1.5 shrink-0">
-                            {p.status !== "approved" && <button onClick={() => updateProposalStatus(p.id, "approved")} className="text-[9px] px-2 py-0.5 rounded border border-green-500/40 text-green-400 hover:bg-green-500/10 transition-colors">Approve</button>}
-                            {p.status !== "rejected" && (
+                            {/* Pending: Approve · Reject (no Delete — rejection is reversible) */}
+                            {p.status === "pending" && <button onClick={() => updateProposalStatus(p.id, "approved")} className="text-[9px] px-2 py-0.5 rounded border border-green-500/40 text-green-400 hover:bg-green-500/10 transition-colors">Approve</button>}
+                            {p.status === "pending" && (
                               <button
                                 onClick={() => { setRejectingProposalId(p.id); setProposalRejectNote(""); }}
                                 className="text-[9px] px-2 py-0.5 rounded border border-red-400/30 text-red-400/70 hover:text-red-400 transition-colors"
@@ -977,6 +978,18 @@ export default function AdminPage() {
                                 Reject
                               </button>
                             )}
+                            {/* Approved: Reject · Delete */}
+                            {p.status === "approved" && (
+                              <button
+                                onClick={() => { setRejectingProposalId(p.id); setProposalRejectNote(""); }}
+                                className="text-[9px] px-2 py-0.5 rounded border border-red-400/30 text-red-400/70 hover:text-red-400 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            )}
+                            {p.status === "approved" && <button onClick={() => deleteProposal(p.id)} className="text-[9px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors">Delete</button>}
+                            {/* Rejected: Approve · Delete (permanent-removal fallback) */}
+                            {p.status === "rejected" && <button onClick={() => updateProposalStatus(p.id, "approved")} className="text-[9px] px-2 py-0.5 rounded border border-green-500/40 text-green-400 hover:bg-green-500/10 transition-colors">Approve</button>}
                             {p.status === "rejected" && <button onClick={() => deleteProposal(p.id)} className="text-[9px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors">Delete</button>}
                           </div>
                         </div>
