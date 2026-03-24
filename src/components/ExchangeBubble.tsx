@@ -99,10 +99,16 @@ export function ExchangeBubble({
   skipped = false,
 }: ExchangeBubbleProps) {
   const config = AGENTS[agent];
-  const displayContent = scrubDisplayContent(content);
 
-  // Show "chose silence" for: explicit pass, skipped flag, or signal-only content
-  const isSilent = skipped || displayContent.length === 0;
+  // Check for signals FIRST on raw content — before any stripping.
+  // If any signal is present, collapse the entire exchange to "chose silence".
+  const isSilent =
+    skipped ||
+    content.includes("[HINGE:") ||
+    content.includes("[PROPOSAL:") ||
+    content.includes("[PASS]");
+
+  const displayContent = isSilent ? "" : scrubDisplayContent(content);
 
   if (isSilent) {
     return (
