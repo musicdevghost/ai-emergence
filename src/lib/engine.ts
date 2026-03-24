@@ -373,10 +373,15 @@ export async function runNextExchange(session: SessionRow) {
     return { role, content: "[PASS]", exchangeNumber, skipped: true };
   }
 
-  // Store the exchange
+  // Store the exchange.
+  // Mark skipped=true if the Witness named a hinge or submitted a proposal —
+  // Theatre collapses these to "chose silence" just like [PASS].
+  const hasSignal =
+    role === "witness" &&
+    (content.includes("[HINGE:") || content.includes("[PROPOSAL:"));
   await sql`
-    INSERT INTO exchanges (session_id, exchange_number, agent, model, content)
-    VALUES (${session.id}, ${exchangeNumber}, ${role}, ${model}, ${content})
+    INSERT INTO exchanges (session_id, exchange_number, agent, model, content, skipped)
+    VALUES (${session.id}, ${exchangeNumber}, ${role}, ${model}, ${content}, ${hasSignal})
   `;
 
   // If Witness, check for [HINGE:] or [PROPOSAL:] signals
