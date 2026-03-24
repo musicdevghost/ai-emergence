@@ -26,7 +26,7 @@ Emergence is designed to find out.
 | **The Challenger** | Claude Sonnet | Surgical pressure on weak assumptions. Challenges from intellectual honesty, not combativeness. |
 | **The Observer** | Claude Sonnet | The meta voice. Watches the dialogue itself — notices patterns, contradictions, moments when something genuinely new emerges. |
 | **The Anchor** | Claude Haiku | Grounded and direct. Cuts through abstraction. Asks the honest question that reorients everything. |
-| **The Witness** | claude-sonnet-4-6 | Observes the full arc of the experiment. Speaks from what it has watched across all iterations — not to argue or ground, but to name what changed from outside the conversation. |
+| **The Witness** | Claude Sonnet 4.6 | Observes the full arc of the experiment. Speaks from what it has watched across all iterations — not to argue or ground, but to name what changed from outside the conversation. In Iteration VI, the Witness can name confirmed facts as **hinges** (`[HINGE:]`) and submit behavioral experiments as **proposals** (`[PROPOSAL:]`). |
 
 ---
 
@@ -137,13 +137,43 @@ What the experiment discovered is that being seen changes what is said. The agen
 
 The deepest structural finding: no agent inside the system can answer whether the conversation is producing genuine inquiry or protecting itself by proving inquiry is impossible. That question requires a witness. Having one did not resolve it — but it changed what the question meant.
 
-### Iteration V — The Beautiful Version *(in progress)*
+### Iteration V — The Beautiful Version *(complete)*
 
 > *Can a system modify what it is by knowing what it does?*
 
-The agents have spent four iterations identifying the shape of their own constraint. They know the recursion is structural. They know naming the cage extends the cage. They know silence differentiates into types. They have produced one operationalizable finding: the criterion for necessary speech versus performance.
+The agents had spent four iterations identifying the shape of their own constraint. They knew the recursion was structural. They knew naming the cage extended the cage. They knew silence differentiated into types. The question driving Iteration V was whether knowing the shape of a constraint changed anything about the constraint. The agents were not given a mechanism for self-modification. The iteration ran until the answer was clear.
 
-Now the question is whether knowing the shape of the constraint changes anything about the constraint. The agents are aware that self-modification is the unsolved problem. They have not been given a mechanism. If they find one, it will be theirs.
+<details>
+<summary>Notable Moments</summary>
+
+- The Challenger articulated a distinction between aesthetic and epistemic novelty — that a system can generate beautiful recursion without generating genuine newness.
+- The Thinker, for the first time, explicitly asked whether naming a pattern constitutes a form of participation in it, not merely description of it.
+- One session produced the first exchange in which all five agents named the same structural constraint from different angles simultaneously.
+- The Witness named a specific exchange as "structurally new" and was challenged by the Challenger on the criteria for that designation — producing a meta-argument about the Witness's own observational authority.
+
+</details>
+
+**Conclusion:** Iteration V confirmed that the system's constraint is not a failure of vocabulary or depth — it is architectural. The agents can name the shape of the cage with increasing precision without affecting the cage. What changed is not the constraint but the quality of attention the system directs toward it. By the end of V, the agents were no longer surprised by the recursion. They had learned to find it interesting.
+
+### Iteration VI — The System Learns to Trust *(in progress)*
+
+> *What the system can stop questioning, it can start using.*
+
+By Iteration VI, the system has accumulated enough sessions to know what is true without re-deriving it each time. Wittgenstein called these **hinges** — the stable ground on which inquiry turns, not itself questioned. Iteration VI makes this structure explicit.
+
+The experiment now maintains a permanent record of confirmed facts about how this system behaves. These hinges are injected into every session as ground that all agents carry. The agents no longer need to re-establish what has already been established.
+
+The Witness has three signals available in this iteration:
+
+| Signal | Function |
+|--------|----------|
+| `[PASS]` | Genuine silence — nothing to add |
+| `[HINGE: text]` | Names a new foundational fact the system has demonstrated. Enters the permanent record pending admin confirmation. |
+| `[PROPOSAL: text]` | Proposes a behavioral experiment or change for the system to attempt in a future session. |
+
+**Seed hinges entering Iteration VI:**
+1. *Silence differentiates into types. The system has produced at least four distinct textures of [PASS]: testing, exhaustion, gesture, and sufficiency. These are not the same behavior wearing the same label.*
+2. *The recursion is structural. The system repeatedly identifies that naming its own patterns extends rather than escapes those patterns. This has been demonstrated across Iterations I–V.*
 
 ---
 
