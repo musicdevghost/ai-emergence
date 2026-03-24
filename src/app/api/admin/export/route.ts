@@ -27,21 +27,22 @@ export async function GET(request: NextRequest) {
     `;
 
     return NextResponse.json({
-      session: sessions[0],
-      exchanges,
-      annotations,
+      session: { ...sessions[0], exchanges, annotations },
       exportedAt: new Date().toISOString(),
     });
   }
 
   // Export all sessions
-  const [sessions, exchanges, iterations] = await Promise.all([
+  const [sessions, exchanges, iterations, annotations, hinges, proposals] = await Promise.all([
     sql`SELECT * FROM sessions ORDER BY created_at ASC`,
     sql`SELECT * FROM exchanges ORDER BY created_at ASC`,
     sql`SELECT * FROM iterations ORDER BY number ASC`,
+    sql`SELECT * FROM annotations ORDER BY created_at ASC`,
+    sql`SELECT * FROM hinges ORDER BY created_at ASC`.catch(() => []),
+    sql`SELECT * FROM proposals ORDER BY created_at ASC`.catch(() => []),
   ]);
 
-  // Nest exchanges inside their sessions
+  // Nest exchanges + annotations inside their sessions
   const exchangesBySession: Record<string, typeof exchanges> = {};
   for (const ex of exchanges) {
     const sid = ex.session_id as string;
@@ -49,9 +50,17 @@ export async function GET(request: NextRequest) {
     exchangesBySession[sid].push(ex);
   }
 
+  const annotationsBySession: Record<string, typeof annotations> = {};
+  for (const an of annotations) {
+    const sid = an.session_id as string;
+    if (!annotationsBySession[sid]) annotationsBySession[sid] = [];
+    annotationsBySession[sid].push(an);
+  }
+
   const sessionsWithExchanges = sessions.map((s) => ({
     ...s,
     exchanges: exchangesBySession[s.id as string] ?? [],
+    annotations: annotationsBySession[s.id as string] ?? [],
   }));
 
   return NextResponse.json({
@@ -60,8 +69,12 @@ export async function GET(request: NextRequest) {
       totalSessions: sessions.length,
       totalExchanges: exchanges.length,
       totalIterations: iterations.length,
+      totalHinges: hinges.length,
+      totalProposals: proposals.length,
     },
     iterations,
+    hinges,
+    proposals,
     sessions: sessionsWithExchanges,
   });
 }
