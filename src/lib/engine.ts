@@ -737,10 +737,11 @@ async function endSession(sessionId: string) {
   `;
 
   // Run Reviewer agent on any pending hinges/proposals from this session
-  // Runs async after session is marked complete — failures are logged, not thrown
-  reviewPendingSignals(sessionId).catch((err) => {
+  try {
+    await reviewPendingSignals(sessionId);
+  } catch (err) {
     console.error(`[reviewer] Unhandled error for session ${sessionId}:`, err);
-  });
+  }
 }
 
 /** Call Anthropic API with exponential backoff retry */
