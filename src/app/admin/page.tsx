@@ -164,11 +164,20 @@ export default function AdminPage() {
   const [forcingExchange, setForcingExchange] = useState(false);
   const [lastForceResult, setLastForceResult] = useState<string | null>(null);
 
-  /* ── Restore secret ── */
+  /* ── Restore secret + auto-login ── */
   useEffect(() => {
-    const saved = sessionStorage.getItem("admin_secret");
+    const saved = localStorage.getItem("admin_secret");
     if (saved) setSecret(saved);
   }, []);
+
+  // When secret is restored from storage, authenticate automatically
+  useEffect(() => {
+    if (secret && !authenticated) {
+      fetchSessions();
+    }
+    // fetchSessions is stable when secret is stable — only runs on initial restore
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secret]);
 
   /* ── Fetchers ── */
   const fetchAnalytics = useCallback(async (range: AnalyticsRange) => {
@@ -198,7 +207,7 @@ export default function AdminPage() {
     if (res.ok) {
       setSessions((await res.json()).sessions);
       setAuthenticated(true);
-      sessionStorage.setItem("admin_secret", secret);
+      localStorage.setItem("admin_secret", secret);
       fetchIterations();
       fetchAnalytics(analyticsRange);
       fetchHinges();
