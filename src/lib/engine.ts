@@ -222,6 +222,27 @@ async function buildWitnessContext(sessionId: string): Promise<string> {
   return brief.trim();
 }
 
+/**
+ * Scrub Witness signal tokens before injecting an exchange into agent context.
+ * The raw text is always preserved in the DB — this only affects what agents see.
+ *
+ * Rules:
+ *  - If content contains [PASS], collapse to just "[PASS]" (no commentary rides along)
+ *  - Strip [HINGE: ...] blocks — hinges reach agents through the GROUND block already
+ *  - Strip [PROPOSAL: ...] blocks — proposals are directed at the human reviewer
+ *  - If nothing meaningful remains after stripping, treat as "[PASS]"
+ */
+function scrubForContext(content: string): string {
+  if (content.includes("[PASS]")) return "[PASS]";
+
+  let scrubbed = content
+    .replace(/\[HINGE:[\s\S]*?\](?=\s|$)/g, "")
+    .replace(/\[PROPOSAL:[\s\S]*?\](?=\s|$)/g, "")
+    .trim();
+
+  return scrubbed.length >= 10 ? scrubbed : "[PASS]";
+}
+
 /** Run the next exchange in the active session */
 export async function runNextExchange(session: SessionRow) {
   const sql = getDb();
@@ -277,12 +298,15 @@ export async function runNextExchange(session: SessionRow) {
     });
   }
 
-  // Add conversation history as alternating user/assistant messages
+  // Add conversation history as alternating user/assistant messages.
+  // Scrub Witness signal tokens ([PASS] commentary, [HINGE:], [PROPOSAL:])
+  // so agents see clean dialogue — raw text stays untouched in the DB.
   for (const exchange of recentExchanges as Exchange[]) {
     const speaker = AGENTS[exchange.agent];
+    const contextContent = scrubForContext(exchange.content);
     messages.push({
       role: "user",
-      content: `[${speaker.name}]: ${exchange.content}`,
+      content: `[${speaker.name}]: ${contextContent}`,
     });
   }
 
