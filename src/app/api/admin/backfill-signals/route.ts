@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const sql = getDb();
 
   // Find all Witness exchanges from VI sessions
-  const { rows: exchanges } = await sql`
+  const exchanges = await sql`
     SELECT e.id, e.content, e.session_id
     FROM exchanges e
     JOIN sessions s ON s.id = e.session_id
@@ -23,8 +23,8 @@ export async function POST(req: NextRequest) {
   `;
 
   // Fetch existing hinge + proposal content to avoid exact duplicates
-  const { rows: existingHinges } = await sql`SELECT content FROM hinges`;
-  const { rows: existingProposals } = await sql`SELECT content FROM proposals`;
+  const existingHinges = await sql`SELECT content FROM hinges`;
+  const existingProposals = await sql`SELECT content FROM proposals`;
   const existingHingeSet = new Set(existingHinges.map((h) => h.content.trim()));
   const existingProposalSet = new Set(existingProposals.map((p) => p.content.trim()));
 
