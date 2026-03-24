@@ -576,6 +576,10 @@ async function buildReviewerContext(
   return context;
 }
 
+export async function triggerReview(sessionId: string) {
+  return reviewPendingSignals(sessionId);
+}
+
 async function reviewPendingSignals(sessionId: string) {
   const sql = getDb();
 
