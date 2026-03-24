@@ -872,7 +872,7 @@ export default function AdminPage() {
             {memoryTab === "hinges" && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-[var(--color-text-muted)]">{hinges.filter((h) => h.confirmed).length} confirmed · {unconfirmedHinges} pending review</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">{hinges.filter((h) => h.confirmed).length} confirmed · {hinges.filter((h) => !h.confirmed && !h.rejection_reason).length} pending · {hinges.filter((h) => h.rejection_reason).length} rejected</p>
                 </div>
                 {hinges.length === 0 ? (
                   <p className="text-xs text-[var(--color-text-muted)] italic">No hinges yet. Run the VI migration, or wait for the Witness to name one with [HINGE: ...].</p>
@@ -900,7 +900,8 @@ export default function AdminPage() {
                             >
                               {h.confirmed ? "Unconfirm" : "Confirm"}
                             </button>
-                            {!h.confirmed && (
+                            {/* Proposed: show Reject (not Delete — rejection is reversible, deletion is not) */}
+                            {!h.confirmed && !h.rejection_reason && (
                               <button
                                 onClick={() => { setRejectingHingeId(h.id); setHingeRejectReason(""); }}
                                 className="text-[9px] px-2 py-0.5 rounded border border-red-400/30 text-red-400/70 hover:text-red-400 transition-colors"
@@ -908,7 +909,14 @@ export default function AdminPage() {
                                 Reject
                               </button>
                             )}
-                            <button onClick={() => deleteHinge(h.id)} className="text-[9px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors">Delete</button>
+                            {/* Rejected: show Delete as permanent-removal fallback only */}
+                            {!h.confirmed && h.rejection_reason && (
+                              <button onClick={() => deleteHinge(h.id)} className="text-[9px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors">Delete</button>
+                            )}
+                            {/* Confirmed: Delete still available */}
+                            {h.confirmed && (
+                              <button onClick={() => deleteHinge(h.id)} className="text-[9px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors">Delete</button>
+                            )}
                           </div>
                         </div>
                         {/* Inline reject reason input */}
