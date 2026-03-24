@@ -29,9 +29,12 @@ export async function POST(request: NextRequest) {
     await sql`
       UPDATE sessions
       SET next_session_at = NOW() - INTERVAL '1 second'
-      WHERE status = 'complete'
-      ORDER BY completed_at DESC
-      LIMIT 1
+      WHERE id = (
+        SELECT id FROM sessions
+        WHERE status = 'complete'
+        ORDER BY completed_at DESC
+        LIMIT 1
+      )
     `;
   }
 
