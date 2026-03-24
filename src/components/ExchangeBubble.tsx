@@ -79,6 +79,18 @@ function renderInlineItalic(text: string, parentIndex: number): React.ReactNode[
   return result.length > 0 ? result : [<span key={`bi${parentIndex}_0`}>{text}</span>];
 }
 
+/**
+ * Strip Witness signal tokens from content before display.
+ * [HINGE:] and [PROPOSAL:] are extracted to the admin panel — they should
+ * not appear in the dialogue view. Raw text is preserved in the DB.
+ */
+function scrubDisplayContent(raw: string): string {
+  return raw
+    .replace(/\[HINGE:[\s\S]*?\](?=\s|$)/g, "")
+    .replace(/\[PROPOSAL:[\s\S]*?\](?=\s|$)/g, "")
+    .trim();
+}
+
 export function ExchangeBubble({
   agent,
   content,
@@ -87,6 +99,7 @@ export function ExchangeBubble({
   skipped = false,
 }: ExchangeBubbleProps) {
   const config = AGENTS[agent];
+  const displayContent = scrubDisplayContent(content);
 
   if (skipped) {
     return (
@@ -126,7 +139,7 @@ export function ExchangeBubble({
       </div>
       <div className="rounded-2xl rounded-tl-sm bg-[var(--color-surface)] border border-[var(--color-border)] px-4 py-3 max-w-[85%]">
         <p className="text-sm leading-relaxed text-[var(--color-text)]">
-          {renderContent(content)}
+          {renderContent(displayContent)}
         </p>
       </div>
     </div>
