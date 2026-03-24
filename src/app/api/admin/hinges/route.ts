@@ -56,7 +56,10 @@ export async function PATCH(request: NextRequest) {
 
   // Reject with reason: store reason, keep confirmed=false
   if (rejection_reason !== undefined) {
-    await sql`UPDATE hinges SET confirmed = FALSE, rejection_reason = ${rejection_reason} WHERE id = ${id}`;
+    if (!rejection_reason || !rejection_reason.trim()) {
+      return NextResponse.json({ error: "rejection_reason is required" }, { status: 400 });
+    }
+    await sql`UPDATE hinges SET confirmed = FALSE, rejection_reason = ${rejection_reason.trim()} WHERE id = ${id}`;
   } else if (confirmed !== undefined) {
     // Confirming clears any prior rejection reason
     await sql`UPDATE hinges SET confirmed = ${confirmed}, rejection_reason = NULL WHERE id = ${id}`;

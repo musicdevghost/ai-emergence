@@ -928,10 +928,10 @@ export default function AdminPage() {
                               placeholder="Rejection reason…"
                               value={hingeRejectReason}
                               onChange={(e) => setHingeRejectReason(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === "Enter") rejectHinge(h.id, hingeRejectReason); if (e.key === "Escape") setRejectingHingeId(null); }}
+                              onKeyDown={(e) => { if (e.key === "Enter" && hingeRejectReason.trim()) rejectHinge(h.id, hingeRejectReason); if (e.key === "Escape") setRejectingHingeId(null); }}
                               className="flex-1 bg-[var(--color-bg)] border border-red-400/30 rounded px-2 py-1 text-[10px] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-red-400/60"
                             />
-                            <button onClick={() => rejectHinge(h.id, hingeRejectReason)} className="text-[9px] px-2 py-1 rounded border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors">Submit</button>
+                            <button onClick={() => rejectHinge(h.id, hingeRejectReason)} disabled={!hingeRejectReason.trim()} className="text-[9px] px-2 py-1 rounded border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">Submit</button>
                             <button onClick={() => setRejectingHingeId(null)} className="text-[9px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Cancel</button>
                           </div>
                         )}
@@ -1002,10 +1002,10 @@ export default function AdminPage() {
                               placeholder="Rejection note…"
                               value={proposalRejectNote}
                               onChange={(e) => setProposalRejectNote(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === "Enter") rejectProposal(p.id, proposalRejectNote); if (e.key === "Escape") setRejectingProposalId(null); }}
+                              onKeyDown={(e) => { if (e.key === "Enter" && proposalRejectNote.trim()) rejectProposal(p.id, proposalRejectNote); if (e.key === "Escape") setRejectingProposalId(null); }}
                               className="flex-1 bg-[var(--color-bg)] border border-red-400/30 rounded px-2 py-1 text-[10px] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-red-400/60"
                             />
-                            <button onClick={() => rejectProposal(p.id, proposalRejectNote)} className="text-[9px] px-2 py-1 rounded border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors">Submit</button>
+                            <button onClick={() => rejectProposal(p.id, proposalRejectNote)} disabled={!proposalRejectNote.trim()} className="text-[9px] px-2 py-1 rounded border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">Submit</button>
                             <button onClick={() => setRejectingProposalId(null)} className="text-[9px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Cancel</button>
                           </div>
                         )}

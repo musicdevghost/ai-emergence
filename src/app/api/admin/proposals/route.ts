@@ -55,8 +55,11 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (status && ["pending", "approved", "rejected"].includes(status)) {
-    if (status === "rejected" && admin_note) {
-      await sql`UPDATE proposals SET status = ${status}, admin_note = ${admin_note}, reviewed_at = NOW() WHERE id = ${id}`;
+    if (status === "rejected") {
+      if (!admin_note || !admin_note.trim()) {
+        return NextResponse.json({ error: "admin_note is required when rejecting" }, { status: 400 });
+      }
+      await sql`UPDATE proposals SET status = ${status}, admin_note = ${admin_note.trim()}, reviewed_at = NOW() WHERE id = ${id}`;
     } else if (status === "approved") {
       await sql`UPDATE proposals SET status = ${status}, reviewed_at = NOW() WHERE id = ${id}`;
     } else {
