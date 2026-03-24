@@ -161,6 +161,8 @@ export default function AdminPage() {
 
   const [hinges, setHinges] = useState<Hinge[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [forcingExchange, setForcingExchange] = useState(false);
+  const [lastForceResult, setLastForceResult] = useState<string | null>(null);
 
   /* ── Restore secret ── */
   useEffect(() => {
@@ -249,6 +251,30 @@ export default function AdminPage() {
       body: JSON.stringify({ exchangeId, sessionId: selectedSession, note: annotationNote }),
     });
     setAnnotationNote("");
+  }
+
+  async function forceExchange() {
+    setForcingExchange(true);
+    setLastForceResult(null);
+    try {
+      const res = await fetch("/api/admin/force-exchange", {
+        method: "POST",
+        headers: { "x-admin-secret": secret },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const { exchange, isNewSession, sessionId } = data;
+        const label = isNewSession ? "New VI session started" : "Exchange added";
+        setLastForceResult(`${label} · ${exchange.agent} #${exchange.number}${exchange.skipped ? " [PASS]" : ""}`);
+        fetchSessions();
+      } else {
+        setLastForceResult(`Error: ${data.error}`);
+      }
+    } catch {
+      setLastForceResult("Request failed");
+    } finally {
+      setForcingExchange(false);
+    }
   }
 
   async function toggleHinge(id: number, confirmed: boolean) {
@@ -419,7 +445,33 @@ export default function AdminPage() {
         {/* ════════════════ OVERVIEW ════════════════ */}
         {activeSection === "overview" && (
           <div className="p-6 space-y-6 max-w-5xl">
-            <SectionHeader title="Overview" />
+            <div className="flex items-center justify-between">
+              <SectionHeader title="Overview" />
+              <div className="flex items-center gap-3">
+                {lastForceResult && (
+                  <span className="text-[10px] text-[var(--color-text-muted)]">{lastForceResult}</span>
+                )}
+                <button
+                  onClick={forceExchange}
+                  disabled={forcingExchange}
+                  className="flex items-center gap-1.5 rounded border border-[var(--color-accent)]/40 px-3 py-1.5 text-[10px] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors disabled:opacity-50"
+                >
+                  {forcingExchange ? (
+                    <>
+                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
+                      Running…
+                    </>
+                  ) : (
+                    <>
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M2 1.5l6 3.5-6 3.5V1.5z" fill="currentColor"/>
+                      </svg>
+                      Force Exchange
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
 
             {/* Active session banner */}
             {activeSession && (
