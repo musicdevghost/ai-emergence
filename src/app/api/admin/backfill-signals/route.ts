@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getDb } from "@/lib/db";
+import { isAdmin } from "@/lib/auth";
 
 // One-time backfill: scan all Witness exchanges from Iteration VI sessions
 // and insert any [HINGE:] / [PROPOSAL:] signals that were missed due to the
 // anchored-regex bug (^ and $ prevented matching signals embedded in prose).
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-admin-secret");
-  if (secret !== process.env.ADMIN_SECRET) {
+  if (!isAdmin(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const sql = getDb();
 
   // Find all Witness exchanges from VI sessions
   const { rows: exchanges } = await sql`
