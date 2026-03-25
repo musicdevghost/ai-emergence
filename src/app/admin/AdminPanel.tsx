@@ -191,7 +191,7 @@ export default function AdminPanel() {
   const [rejectingProposalId, setRejectingProposalId] = useState<number | null>(null);
   const [proposalRejectNote, setProposalRejectNote] = useState("");
   // Memory pagination + filters
-  const MEMORY_PAGE_SIZE = 10;
+  const MEMORY_PAGE_SIZE = 5;
   const [hingesPage, setHingesPage] = useState(1);
   const [proposalsPage, setProposalsPage] = useState(1);
   const [hingesFilter, setHingesFilter] = useState<"all" | "confirmed" | "pending" | "rejected">("all");
