@@ -646,26 +646,54 @@ async function reviewPendingSignals(sessionId: string) {
   for (const review of reviews) {
     try {
       if (review.type === "hinge") {
-        await sql`
-          UPDATE hinges
-          SET reviewer_decision = ${review.decision},
-              reviewer_reason    = ${review.reason}
-          WHERE id = ${review.id}
-        `;
+        if (review.decision === "confirm") {
+          await sql`
+            UPDATE hinges
+            SET confirmed          = true,
+                rejection_reason   = NULL,
+                reviewer_decision  = ${review.decision},
+                reviewer_reason    = ${review.reason}
+            WHERE id = ${review.id}
+          `;
+        } else if (review.decision === "reject") {
+          await sql`
+            UPDATE hinges
+            SET confirmed          = false,
+                rejection_reason   = ${review.reason},
+                reviewer_decision  = ${review.decision},
+                reviewer_reason    = ${review.reason}
+            WHERE id = ${review.id}
+          `;
+        }
       } else if (review.type === "proposal") {
-        await sql`
-          UPDATE proposals
-          SET reviewer_decision = ${review.decision},
-              reviewer_reason    = ${review.reason}
-          WHERE id = ${review.id}
-        `;
+        if (review.decision === "approve") {
+          await sql`
+            UPDATE proposals
+            SET status             = 'approved',
+                admin_note         = ${review.reason},
+                reviewed_at        = NOW(),
+                reviewer_decision  = ${review.decision},
+                reviewer_reason    = ${review.reason}
+            WHERE id = ${review.id}
+          `;
+        } else if (review.decision === "reject") {
+          await sql`
+            UPDATE proposals
+            SET status             = 'rejected',
+                admin_note         = ${review.reason},
+                reviewed_at        = NOW(),
+                reviewer_decision  = ${review.decision},
+                reviewer_reason    = ${review.reason}
+            WHERE id = ${review.id}
+          `;
+        }
       }
     } catch (err) {
       console.error(`[reviewer] Failed to write review for ${review.type} id=${review.id}:`, err);
     }
   }
 
-  console.log(`[reviewer] Wrote ${reviews.length} recommendation(s) for session ${sessionId}`);
+  console.log(`[reviewer] Auto-executed ${reviews.length} decision(s) for session ${sessionId}`);
 }
 
 // ─── End Reviewer Agent ───────────────────────────────────────────────────────

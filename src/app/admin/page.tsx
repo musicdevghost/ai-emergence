@@ -896,17 +896,30 @@ export default function AdminPage() {
                             {h.rejection_reason && (
                               <p className="mt-1 text-[9px] text-red-400/70 italic">Reason: {h.rejection_reason}</p>
                             )}
-                            {/* Reviewer recommendation — only shown on pending items */}
-                            {!h.confirmed && !h.rejection_reason && h.reviewer_decision && (
-                              <div className={`mt-2 rounded px-2 py-1.5 border ${h.reviewer_decision === "confirm" ? "border-green-500/30 bg-green-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
-                                <p className={`text-[9px] font-medium uppercase tracking-wider ${h.reviewer_decision === "confirm" ? "text-green-400" : "text-amber-400"}`}>
-                                  Reviewer: {h.reviewer_decision === "confirm" ? "✓ Confirm" : "✕ Reject"}
-                                </p>
-                                {h.reviewer_reason && (
-                                  <p className="mt-0.5 text-[9px] text-[var(--color-text-muted)] leading-relaxed">{h.reviewer_reason}</p>
-                                )}
-                              </div>
-                            )}
+                            {/* Reviewer badge — shows on all auto-reviewed items */}
+                            {h.reviewer_decision && (() => {
+                              // Detect override: canonical state differs from reviewer decision
+                              const reviewerSaidConfirm = h.reviewer_decision === "confirm";
+                              const canonicalConfirmed  = h.confirmed;
+                              const canonicalRejected   = !h.confirmed && !!h.rejection_reason;
+                              const overridden = reviewerSaidConfirm ? canonicalRejected : canonicalConfirmed;
+                              const label = overridden ? "Overridden" : "Auto-reviewed";
+                              const labelColor = overridden ? "text-amber-400" : "text-[var(--color-text-muted)]";
+                              return (
+                                <div className="mt-2 rounded px-2 py-1.5 border border-[var(--color-border)] bg-[var(--color-surface)]/50">
+                                  <p className="text-[9px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+                                    <span className={labelColor}>{label}</span>
+                                    {" · "}
+                                    <span className={h.reviewer_decision === "confirm" ? "text-green-400" : "text-red-400"}>
+                                      {h.reviewer_decision === "confirm" ? "✓ Confirm" : "✕ Reject"}
+                                    </span>
+                                  </p>
+                                  {h.reviewer_reason && (
+                                    <p className="mt-0.5 text-[9px] text-[var(--color-text-muted)] leading-relaxed">{h.reviewer_reason}</p>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="flex flex-col gap-1.5 shrink-0">
                             <button
@@ -981,17 +994,27 @@ export default function AdminPage() {
                             {p.admin_note && (
                               <p className="mt-1 text-[9px] text-red-400/70 italic">Reason: {p.admin_note}</p>
                             )}
-                            {/* Reviewer recommendation — only shown on pending items */}
-                            {p.status === "pending" && p.reviewer_decision && (
-                              <div className={`mt-2 rounded px-2 py-1.5 border ${p.reviewer_decision === "confirm" ? "border-green-500/30 bg-green-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
-                                <p className={`text-[9px] font-medium uppercase tracking-wider ${p.reviewer_decision === "confirm" ? "text-green-400" : "text-amber-400"}`}>
-                                  Reviewer: {p.reviewer_decision === "confirm" ? "✓ Approve" : "✕ Reject"}
-                                </p>
-                                {p.reviewer_reason && (
-                                  <p className="mt-0.5 text-[9px] text-[var(--color-text-muted)] leading-relaxed">{p.reviewer_reason}</p>
-                                )}
-                              </div>
-                            )}
+                            {/* Reviewer badge — shows on all auto-reviewed items */}
+                            {p.reviewer_decision && (() => {
+                              const reviewerSaidApprove = p.reviewer_decision === "approve";
+                              const overridden = reviewerSaidApprove ? p.status === "rejected" : p.status === "approved";
+                              const label = overridden ? "Overridden" : "Auto-reviewed";
+                              const labelColor = overridden ? "text-amber-400" : "text-[var(--color-text-muted)]";
+                              return (
+                                <div className="mt-2 rounded px-2 py-1.5 border border-[var(--color-border)] bg-[var(--color-surface)]/50">
+                                  <p className="text-[9px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+                                    <span className={labelColor}>{label}</span>
+                                    {" · "}
+                                    <span className={p.reviewer_decision === "approve" ? "text-green-400" : "text-red-400"}>
+                                      {p.reviewer_decision === "approve" ? "✓ Approve" : "✕ Reject"}
+                                    </span>
+                                  </p>
+                                  {p.reviewer_reason && (
+                                    <p className="mt-0.5 text-[9px] text-[var(--color-text-muted)] leading-relaxed">{p.reviewer_reason}</p>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="flex flex-col gap-1.5 shrink-0">
                             {/* Pending: Approve · Reject (no Delete — rejection is reversible) */}
