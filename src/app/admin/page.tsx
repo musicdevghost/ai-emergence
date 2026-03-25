@@ -173,6 +173,12 @@ export default function AdminPage() {
   const [hingeRejectReason, setHingeRejectReason] = useState("");
   const [rejectingProposalId, setRejectingProposalId] = useState<number | null>(null);
   const [proposalRejectNote, setProposalRejectNote] = useState("");
+  // Memory pagination + filters
+  const MEMORY_PAGE_SIZE = 10;
+  const [hingesPage, setHingesPage] = useState(1);
+  const [proposalsPage, setProposalsPage] = useState(1);
+  const [hingesFilter, setHingesFilter] = useState<"all" | "confirmed" | "pending" | "rejected">("all");
+  const [proposalsFilter, setProposalsFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [forcingExchange, setForcingExchange] = useState(false);
   const [lastForceResult, setLastForceResult] = useState<string | null>(null);
 
@@ -875,14 +881,41 @@ export default function AdminPage() {
             {/* Hinges tab */}
             {memoryTab === "hinges" && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-[var(--color-text-muted)]">{hinges.filter((h) => h.confirmed).length} confirmed · {hinges.filter((h) => !h.confirmed && !h.rejection_reason).length} pending · {hinges.filter((h) => h.rejection_reason).length} rejected</p>
+                {/* Header row: counts + filter + export */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-[10px] text-[var(--color-text-muted)] mr-auto">
+                    {hinges.filter((h) => h.confirmed).length} confirmed · {hinges.filter((h) => !h.confirmed && !h.rejection_reason).length} pending · {hinges.filter((h) => h.rejection_reason).length} rejected
+                  </p>
+                  {(["all", "confirmed", "pending", "rejected"] as const).map((f) => (
+                    <button key={f} onClick={() => { setHingesFilter(f); setHingesPage(1); }}
+                      className={`text-[9px] px-2 py-0.5 rounded border transition-colors capitalize ${hingesFilter === f ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>
+                      {f}
+                    </button>
+                  ))}
+                  <button onClick={() => {
+                    const data = JSON.stringify(hinges, null, 2);
+                    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+                    a.download = `emergence-hinges-${new Date().toISOString().slice(0,10)}.json`; a.click();
+                  }} className="text-[9px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
+                    Export JSON
+                  </button>
                 </div>
                 {hinges.length === 0 ? (
                   <p className="text-xs text-[var(--color-text-muted)] italic">No hinges yet. Run the VI migration, or wait for the Witness to name one with [HINGE: ...].</p>
-                ) : (
+                ) : (() => {
+                  const filtered = hinges.filter((h) =>
+                    hingesFilter === "all" ? true :
+                    hingesFilter === "confirmed" ? h.confirmed :
+                    hingesFilter === "pending" ? (!h.confirmed && !h.rejection_reason) :
+                    !!h.rejection_reason
+                  );
+                  const totalPages = Math.ceil(filtered.length / MEMORY_PAGE_SIZE);
+                  const page = Math.min(hingesPage, totalPages || 1);
+                  const paged = filtered.slice((page - 1) * MEMORY_PAGE_SIZE, page * MEMORY_PAGE_SIZE);
+                  return (
                   <div className="space-y-2">
-                    {hinges.map((h) => (
+                    {paged.length === 0 && <p className="text-xs text-[var(--color-text-muted)] italic">No hinges match this filter.</p>}
+                    {paged.map((h) => (
                       <div key={h.id} className={`rounded-lg border p-3 ${h.confirmed ? "border-green-500/30 bg-green-500/5" : h.rejection_reason ? "border-red-500/20 bg-red-500/5 opacity-70" : "border-[var(--color-border)] bg-[var(--color-surface)]"}`}>
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">
@@ -965,20 +998,56 @@ export default function AdminPage() {
                         )}
                       </div>
                     ))}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between pt-1">
+                        <button onClick={() => setHingesPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                          className="text-[9px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-30 transition-colors">← Prev</button>
+                        <span className="text-[9px] text-[var(--color-text-muted)]">{page} / {totalPages}</span>
+                        <button onClick={() => setHingesPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                          className="text-[9px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-30 transition-colors">Next →</button>
+                      </div>
+                    )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
             {/* Proposals tab */}
             {memoryTab === "proposals" && (
               <div className="space-y-3">
-                <p className="text-[10px] text-[var(--color-text-muted)]">{pendingProposals} pending · {proposals.filter((p) => p.status === "approved").length} approved · {proposals.filter((p) => p.status === "rejected").length} rejected</p>
+                {/* Header row: counts + filter + export */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-[10px] text-[var(--color-text-muted)] mr-auto">
+                    {pendingProposals} pending · {proposals.filter((p) => p.status === "approved").length} approved · {proposals.filter((p) => p.status === "rejected").length} rejected
+                  </p>
+                  {(["all", "pending", "approved", "rejected"] as const).map((f) => (
+                    <button key={f} onClick={() => { setProposalsFilter(f); setProposalsPage(1); }}
+                      className={`text-[9px] px-2 py-0.5 rounded border transition-colors capitalize ${proposalsFilter === f ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>
+                      {f}
+                    </button>
+                  ))}
+                  <button onClick={() => {
+                    const data = JSON.stringify(proposals, null, 2);
+                    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+                    a.download = `emergence-proposals-${new Date().toISOString().slice(0,10)}.json`; a.click();
+                  }} className="text-[9px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
+                    Export JSON
+                  </button>
+                </div>
                 {proposals.length === 0 ? (
                   <p className="text-xs text-[var(--color-text-muted)] italic">No proposals yet. The Witness can submit [PROPOSAL: ...] during a session.</p>
-                ) : (
+                ) : (() => {
+                  const filtered = proposals.filter((p) =>
+                    proposalsFilter === "all" ? true : p.status === proposalsFilter
+                  );
+                  const totalPages = Math.ceil(filtered.length / MEMORY_PAGE_SIZE);
+                  const page = Math.min(proposalsPage, totalPages || 1);
+                  const paged = filtered.slice((page - 1) * MEMORY_PAGE_SIZE, page * MEMORY_PAGE_SIZE);
+                  return (
                   <div className="space-y-2">
-                    {proposals.map((p) => (
+                    {paged.length === 0 && <p className="text-xs text-[var(--color-text-muted)] italic">No proposals match this filter.</p>}
+                    {paged.map((p) => (
                       <div key={p.id} className={`rounded-lg border p-3 ${
                         p.status === "approved" ? "border-green-500/30 bg-green-500/5"
                         : p.status === "rejected" ? "border-red-500/20 bg-red-500/5 opacity-60"
@@ -1060,8 +1129,18 @@ export default function AdminPage() {
                         )}
                       </div>
                     ))}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between pt-1">
+                        <button onClick={() => setProposalsPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                          className="text-[9px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-30 transition-colors">← Prev</button>
+                        <span className="text-[9px] text-[var(--color-text-muted)]">{page} / {totalPages}</span>
+                        <button onClick={() => setProposalsPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                          className="text-[9px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-30 transition-colors">Next →</button>
+                      </div>
+                    )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
             )}
           </div>
