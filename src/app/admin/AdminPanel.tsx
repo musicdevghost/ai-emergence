@@ -195,7 +195,9 @@ export default function AdminPanel() {
   const [hingesPage, setHingesPage] = useState(1);
   const [proposalsPage, setProposalsPage] = useState(1);
   const [hingesFilter, setHingesFilter] = useState<"all" | "confirmed" | "pending" | "rejected">("all");
+  const [hingesOrder, setHingesOrder] = useState<"desc" | "asc">("desc");
   const [proposalsFilter, setProposalsFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [proposalsOrder, setProposalsOrder] = useState<"desc" | "asc">("desc");
   const [forcingExchange, setForcingExchange] = useState(false);
   const [lastForceResult, setLastForceResult] = useState<string | null>(null);
 
@@ -916,6 +918,10 @@ export default function AdminPanel() {
                       {f}
                     </button>
                   ))}
+                  <button onClick={() => { setHingesOrder(o => o === "desc" ? "asc" : "desc"); setHingesPage(1); }}
+                    className="text-[9px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
+                    {hingesOrder === "desc" ? "↓ Latest" : "↑ Oldest"}
+                  </button>
                   <button onClick={() => {
                     const data = JSON.stringify(hinges, null, 2);
                     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
@@ -927,12 +933,17 @@ export default function AdminPanel() {
                 {hinges.length === 0 ? (
                   <p className="text-xs text-[var(--color-text-muted)] italic">No hinges yet. Run the VI migration, or wait for the Witness to name one with [HINGE: ...].</p>
                 ) : (() => {
-                  const filtered = hinges.filter((h) =>
-                    hingesFilter === "all" ? true :
-                    hingesFilter === "confirmed" ? h.confirmed :
-                    hingesFilter === "pending" ? (!h.confirmed && !h.rejection_reason) :
-                    !!h.rejection_reason
-                  );
+                  const filtered = hinges
+                    .filter((h) =>
+                      hingesFilter === "all" ? true :
+                      hingesFilter === "confirmed" ? h.confirmed :
+                      hingesFilter === "pending" ? (!h.confirmed && !h.rejection_reason) :
+                      !!h.rejection_reason
+                    )
+                    .sort((a, b) => {
+                      const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                      return hingesOrder === "desc" ? diff : -diff;
+                    });
                   const totalPages = Math.ceil(filtered.length / MEMORY_PAGE_SIZE);
                   const page = Math.min(hingesPage, totalPages || 1);
                   const paged = filtered.slice((page - 1) * MEMORY_PAGE_SIZE, page * MEMORY_PAGE_SIZE);
@@ -1051,6 +1062,10 @@ export default function AdminPanel() {
                       {f}
                     </button>
                   ))}
+                  <button onClick={() => { setProposalsOrder(o => o === "desc" ? "asc" : "desc"); setProposalsPage(1); }}
+                    className="text-[9px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
+                    {proposalsOrder === "desc" ? "↓ Latest" : "↑ Oldest"}
+                  </button>
                   <button onClick={() => {
                     const data = JSON.stringify(proposals, null, 2);
                     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
@@ -1062,9 +1077,12 @@ export default function AdminPanel() {
                 {proposals.length === 0 ? (
                   <p className="text-xs text-[var(--color-text-muted)] italic">No proposals yet. The Witness can submit [PROPOSAL: ...] during a session.</p>
                 ) : (() => {
-                  const filtered = proposals.filter((p) =>
-                    proposalsFilter === "all" ? true : p.status === proposalsFilter
-                  );
+                  const filtered = proposals
+                    .filter((p) => proposalsFilter === "all" ? true : p.status === proposalsFilter)
+                    .sort((a, b) => {
+                      const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                      return proposalsOrder === "desc" ? diff : -diff;
+                    });
                   const totalPages = Math.ceil(filtered.length / MEMORY_PAGE_SIZE);
                   const page = Math.min(proposalsPage, totalPages || 1);
                   const paged = filtered.slice((page - 1) * MEMORY_PAGE_SIZE, page * MEMORY_PAGE_SIZE);
