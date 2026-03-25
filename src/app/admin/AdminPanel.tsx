@@ -170,6 +170,9 @@ export default function AdminPanel() {
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [sessionsStatusFilter, setSessionsStatusFilter] = useState<"all" | "active" | "complete" | "paused">("all");
+  const [sessionsIterFilter, setSessionsIterFilter] = useState<number | "all">("all");
+  const [sessionsOrder, setSessionsOrder] = useState<"desc" | "asc">("desc");
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [annotationNote, setAnnotationNote] = useState("");
 
@@ -663,16 +666,64 @@ export default function AdminPanel() {
         )}
 
         {/* ════════════════ SESSIONS ════════════════ */}
-        {activeSection === "sessions" && (
+        {activeSection === "sessions" && (() => {
+          const filteredSessions = sessions
+            .filter(s =>
+              (sessionsStatusFilter === "all" || s.status === sessionsStatusFilter) &&
+              (sessionsIterFilter === "all" || s.iteration_id === sessionsIterFilter)
+            )
+            .sort((a, b) => {
+              const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              return sessionsOrder === "desc" ? diff : -diff;
+            });
+          return (
           <div className="flex h-full">
             {/* Session list */}
             <div className="w-72 shrink-0 border-r border-[var(--color-border)] flex flex-col h-full">
-              <div className="px-4 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
-                <SectionHeader title={`Sessions (${sessions.length})`} compact />
+              {/* Filter bar */}
+              <div className="px-3 py-2 border-b border-[var(--color-border)] space-y-2">
+                {/* Status filters + sort */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  {(["all", "active", "complete", "paused"] as const).map(f => (
+                    <button key={f} onClick={() => setSessionsStatusFilter(f)}
+                      className={`text-[9px] px-2 py-0.5 rounded border capitalize transition-colors ${sessionsStatusFilter === f ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>
+                      {f}
+                    </button>
+                  ))}
+                  <button onClick={() => setSessionsOrder(o => o === "desc" ? "asc" : "desc")}
+                    className="ml-auto text-[9px] px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
+                    {sessionsOrder === "desc" ? "↓ Latest" : "↑ Oldest"}
+                  </button>
+                </div>
+                {/* Iteration filter + count + export */}
+                <div className="flex items-center gap-2">
+                  <select value={sessionsIterFilter} onChange={e => setSessionsIterFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+                    className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-[9px] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]">
+                    <option value="all">All iterations ({sessions.length})</option>
+                    {[...iterations].sort((a,b) => b.number - a.number).map(it => {
+                      const count = sessions.filter(s => s.iteration_id === it.id).length;
+                      return <option key={it.id} value={it.id}>{toRoman(it.number)}. {it.name} ({count})</option>;
+                    })}
+                  </select>
+                  <button onClick={() => {
+                    const data = JSON.stringify({ exportedAt: new Date().toISOString(), total: filteredSessions.length, sessions: filteredSessions }, null, 2);
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+                    a.download = `emergence-sessions-${new Date().toISOString().slice(0,10)}.json`;
+                    a.click();
+                  }} className="shrink-0 text-[9px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] px-2 py-1 rounded transition-colors">
+                    Export
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-                {sessions.map((s) => {
+                {filteredSessions.length === 0 && (
+                  <p className="text-[10px] text-[var(--color-text-muted)] italic px-1">No sessions match this filter.</p>
+                )}
+                {filteredSessions.map((s) => {
                   const iterForSession = iterations.find((i) => i.id === s.iteration_id);
+                  const iterSessions = sessions.filter(ss => ss.iteration_id === s.iteration_id).sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                  const sessionNum = iterSessions.findIndex(ss => ss.id === s.id) + 1;
                   return (
                     <button
                       key={s.id}
@@ -692,7 +743,7 @@ export default function AdminPanel() {
                         <span className="text-[10px] text-[var(--color-text-muted)]">{s.exchange_count} ex.</span>
                       </div>
                       {iterForSession && (
-                        <p className="text-[9px] text-[var(--color-accent)]/70 mt-0.5">{toRoman(iterForSession.number)}. {iterForSession.name}</p>
+                        <p className="text-[9px] text-[var(--color-accent)]/70 mt-0.5">{toRoman(iterForSession.number)}-{sessionNum} · {iterForSession.name}</p>
                       )}
                       <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">{new Date(s.created_at).toLocaleString()}</p>
                       {s.extracted_thread && (
@@ -716,18 +767,27 @@ export default function AdminPanel() {
                     <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-4">
                       <div className="flex items-center flex-wrap gap-2">
                         <span className="font-mono text-xs text-[var(--color-text)]">{session.id.slice(0, 8)}</span>
-                        {iterationForSession && (
-                          <span className="rounded-full border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-2 py-0.5 text-[10px] text-[var(--color-accent)]">
-                            {toRoman(iterationForSession.number)}. {iterationForSession.name}
-                          </span>
-                        )}
+                        {iterationForSession && (() => {
+                          const iterSess = sessions.filter(ss => ss.iteration_id === session.iteration_id).sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                          const num = iterSess.findIndex(ss => ss.id === session.id) + 1;
+                          return (
+                            <span className="rounded-full border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-2 py-0.5 text-[10px] text-[var(--color-accent)]">
+                              {toRoman(iterationForSession.number)}-{num} · {iterationForSession.name}
+                            </span>
+                          );
+                        })()}
                         <span className="text-[10px] text-[var(--color-text-muted)]">{session.exchange_count} exchanges</span>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${
                           session.status === "active" ? "bg-green-500/10 text-green-400 border border-green-500/30"
                           : session.status === "paused" ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
                           : "bg-[var(--color-bg)] text-[var(--color-text-muted)] border border-[var(--color-border)]"
                         }`}>{session.status}</span>
+                        {session.completed_at && (() => {
+                          const mins = Math.round((new Date(session.completed_at).getTime() - new Date(session.created_at).getTime()) / 60000);
+                          return <span className="text-[10px] text-[var(--color-text-muted)]">{mins}m</span>;
+                        })()}
                         <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">{new Date(session.created_at).toLocaleString()}</span>
+                        <button onClick={() => exportSession(selectedSession!)} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] px-2 py-0.5 rounded transition-colors">Export JSON</button>
                       </div>
 
                       {session.seed_thread && (
@@ -769,7 +829,6 @@ export default function AdminPanel() {
                         {session.status === "paused" && (
                           <button onClick={() => handleSessionAction(selectedSession, "resume")} className="text-[10px] text-green-400 hover:underline">Resume</button>
                         )}
-                        <button onClick={() => exportSession(selectedSession)} className="text-[10px] text-[var(--color-text-muted)] hover:underline ml-auto">Export JSON</button>
                       </div>
                     </div>
 
@@ -843,7 +902,8 @@ export default function AdminPanel() {
               )}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ════════════════ ITERATIONS ════════════════ */}
         {activeSection === "iterations" && (() => {
