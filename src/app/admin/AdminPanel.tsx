@@ -930,6 +930,15 @@ export default function AdminPanel() {
                         <button onClick={() => setEditingIteration({ conclusion: selectedIter.conclusion ?? "", notable_moments: (selectedIter.notable_moments ?? []).join("\n") })}
                           className="text-[10px] text-[var(--color-accent)] hover:underline">Edit</button>
                       )}
+                      <button onClick={() => {
+                        const data = JSON.stringify({ ...selectedIter, sessions: iterSessions }, null, 2);
+                        const a = document.createElement("a");
+                        a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+                        a.download = `emergence-iteration-${toRoman(selectedIter.number).toLowerCase()}-${selectedIter.name.toLowerCase().replace(/\s+/g, "-")}.json`;
+                        a.click();
+                      }} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] px-2 py-0.5 rounded transition-colors">
+                        Export JSON
+                      </button>
                     </div>
                   </div>
 
