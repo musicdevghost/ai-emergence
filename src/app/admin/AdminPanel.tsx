@@ -859,13 +859,26 @@ export default function AdminPanel() {
             {/* Left — list */}
             <div className="w-64 shrink-0 border-r border-[var(--color-border)] flex flex-col h-full overflow-hidden">
               {/* Filter */}
-              <div className="flex gap-1 p-3 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-1 p-3 border-b border-[var(--color-border)]">
                 {(["all", "active", "ended"] as const).map(f => (
                   <button key={f} onClick={() => setIterationsFilter(f)}
                     className={`text-[9px] px-2 py-0.5 rounded border capitalize transition-colors ${iterationsFilter === f ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>
                     {f}
                   </button>
                 ))}
+                <button onClick={() => {
+                  const allWithSessions = iterations.map(it => ({
+                    ...it,
+                    sessions: sessions.filter(s => s.iteration_id === it.id),
+                  }));
+                  const data = JSON.stringify({ exportedAt: new Date().toISOString(), total: iterations.length, iterations: allWithSessions }, null, 2);
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+                  a.download = `emergence-iterations-all-${new Date().toISOString().slice(0,10)}.json`;
+                  a.click();
+                }} className="ml-auto text-[9px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] px-2 py-0.5 rounded transition-colors">
+                  Export All
+                </button>
               </div>
               {/* List */}
               <div className="flex-1 overflow-y-auto">
