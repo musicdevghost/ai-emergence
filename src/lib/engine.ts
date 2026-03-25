@@ -429,8 +429,8 @@ export async function runNextExchange(session: SessionRow) {
     for (const match of hingeMatches) {
       try {
         await sql`
-          INSERT INTO hinges (content, confirmed, source, session_id)
-          VALUES (${match[1].trim()}, FALSE, 'witness', ${session.id})
+          INSERT INTO hinges (content, confirmed, source, session_id, exchange_number)
+          VALUES (${match[1].trim()}, FALSE, 'witness', ${session.id}, ${exchangeNumber})
         `;
         console.log(`[runNextExchange] Witness named a new hinge for session ${session.id}`);
       } catch (err) {
@@ -442,8 +442,8 @@ export async function runNextExchange(session: SessionRow) {
     for (const match of proposalMatches) {
       try {
         await sql`
-          INSERT INTO proposals (content, status, session_id)
-          VALUES (${match[1].trim()}, 'pending', ${session.id})
+          INSERT INTO proposals (content, status, session_id, exchange_number)
+          VALUES (${match[1].trim()}, 'pending', ${session.id}, ${exchangeNumber})
         `;
         console.log(`[runNextExchange] Witness submitted a proposal for session ${session.id}`);
       } catch (err) {

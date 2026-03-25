@@ -66,6 +66,9 @@ interface Hinge {
   rejection_reason: string | null;
   reviewer_decision: "confirm" | "reject" | null;
   reviewer_reason: string | null;
+  exchange_number: number | null;
+  iteration_number: number | null;
+  iteration_name: string | null;
 }
 
 interface Proposal {
@@ -78,11 +81,22 @@ interface Proposal {
   reviewed_at: string | null;
   reviewer_decision: "approve" | "reject" | null;
   reviewer_reason: string | null;
+  exchange_number: number | null;
+  iteration_number: number | null;
+  iteration_name: string | null;
 }
 
 type AnalyticsRange = "1d" | "7d" | "30d" | "all";
 type Section = "overview" | "sessions" | "iterations" | "memory" | "export";
 type MemoryTab = "hinges" | "proposals";
+
+function toBkkTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    timeZone: "Asia/Bangkok",
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  }) + " BKK";
+}
 
 const RANGE_LABELS: Record<AnalyticsRange, string> = {
   "1d": "Today", "7d": "7 Days", "30d": "30 Days", all: "All Time",
@@ -1159,7 +1173,15 @@ export default function AdminPanel() {
                             <p className="text-xs text-[var(--color-text)] leading-relaxed">{h.content}</p>
                             <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                               <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)]">{h.source}</span>
-                              <span className="text-[9px] text-[var(--color-text-muted)]">{new Date(h.created_at).toLocaleDateString()}</span>
+                              {h.iteration_number != null && (
+                                <span className="text-[9px] text-[var(--color-text-muted)]">
+                                  Iter {h.iteration_number}{h.iteration_name ? ` · ${h.iteration_name}` : ""}
+                                </span>
+                              )}
+                              {h.exchange_number != null && (
+                                <span className="text-[9px] text-[var(--color-text-muted)]">Ex {h.exchange_number}</span>
+                              )}
+                              <span className="text-[9px] text-[var(--color-text-muted)]">{toBkkTime(h.created_at)}</span>
                               {h.confirmed && <span className="text-[9px] text-green-400 font-medium">● confirmed</span>}
                               {!h.confirmed && h.rejection_reason && <span className="text-[9px] text-red-400 font-medium">● rejected</span>}
                             </div>
@@ -1300,9 +1322,17 @@ export default function AdminPanel() {
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-[var(--color-text)] leading-relaxed">{p.content}</p>
-                            <div className="mt-1.5 flex items-center gap-2">
+                            <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                               <span className={`text-[9px] uppercase tracking-wider font-medium ${p.status === "approved" ? "text-green-400" : p.status === "rejected" ? "text-red-400" : "text-amber-400"}`}>{p.status}</span>
-                              <span className="text-[9px] text-[var(--color-text-muted)]">{new Date(p.created_at).toLocaleDateString()}</span>
+                              {p.iteration_number != null && (
+                                <span className="text-[9px] text-[var(--color-text-muted)]">
+                                  Iter {p.iteration_number}{p.iteration_name ? ` · ${p.iteration_name}` : ""}
+                                </span>
+                              )}
+                              {p.exchange_number != null && (
+                                <span className="text-[9px] text-[var(--color-text-muted)]">Ex {p.exchange_number}</span>
+                              )}
+                              <span className="text-[9px] text-[var(--color-text-muted)]">{toBkkTime(p.created_at)}</span>
                             </div>
                             {p.admin_note && (
                               <p className="mt-1 text-[9px] text-red-400/70 italic">Reason: {p.admin_note}</p>

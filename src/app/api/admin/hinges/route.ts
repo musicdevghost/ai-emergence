@@ -25,12 +25,17 @@ export async function GET(request: NextRequest) {
   await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS rejection_reason TEXT`;
   await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS reviewer_decision VARCHAR(20)`;
   await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS reviewer_reason TEXT`;
+  await sql`ALTER TABLE hinges ADD COLUMN IF NOT EXISTS exchange_number INTEGER`;
 
   const hinges = await sql`
     SELECT h.id, h.content, h.confirmed, h.source, h.created_at,
            h.session_id, h.rejection_reason,
-           h.reviewer_decision, h.reviewer_reason
+           h.reviewer_decision, h.reviewer_reason,
+           h.exchange_number,
+           i.number AS iteration_number, i.name AS iteration_name
     FROM hinges h
+    LEFT JOIN sessions s ON s.id = h.session_id
+    LEFT JOIN iterations i ON i.id = s.iteration_id
     ORDER BY h.created_at ASC
   `;
 

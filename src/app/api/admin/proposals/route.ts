@@ -25,12 +25,17 @@ export async function GET(request: NextRequest) {
   await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP WITH TIME ZONE`;
   await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewer_decision VARCHAR(20)`;
   await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reviewer_reason TEXT`;
+  await sql`ALTER TABLE proposals ADD COLUMN IF NOT EXISTS exchange_number INTEGER`;
 
   const proposals = await sql`
-    SELECT id, content, status, session_id, created_at, admin_note, reviewed_at,
-           reviewer_decision, reviewer_reason
-    FROM proposals
-    ORDER BY created_at DESC
+    SELECT p.id, p.content, p.status, p.session_id, p.created_at, p.admin_note,
+           p.reviewed_at, p.reviewer_decision, p.reviewer_reason,
+           p.exchange_number,
+           i.number AS iteration_number, i.name AS iteration_name
+    FROM proposals p
+    LEFT JOIN sessions s ON s.id = p.session_id
+    LEFT JOIN iterations i ON i.id = s.iteration_id
+    ORDER BY p.created_at DESC
   `;
 
   return NextResponse.json({ proposals });
