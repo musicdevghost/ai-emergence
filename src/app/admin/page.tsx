@@ -75,7 +75,7 @@ interface Proposal {
   created_at: string;
   admin_note: string | null;
   reviewed_at: string | null;
-  reviewer_decision: "confirm" | "reject" | null;
+  reviewer_decision: "approve" | "reject" | null;
   reviewer_reason: string | null;
 }
 
