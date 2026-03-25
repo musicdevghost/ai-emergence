@@ -148,7 +148,10 @@ const NAV: { id: Section; label: string; icon: React.ReactNode }[] = [
 
 export default function AdminPanel() {
   const [secret, setSecret] = useState("");
-  const [authenticated, setAuthenticated] = useState(false);
+  // null = still checking localStorage (prevents gate flash on refresh)
+  // false = checked, no saved token or token rejected
+  // true  = authenticated
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeSection: Section = (searchParams.get("section") as Section) || "overview";
@@ -199,12 +202,16 @@ export default function AdminPanel() {
   /* ── Restore secret + auto-login ── */
   useEffect(() => {
     const saved = localStorage.getItem("admin_secret");
-    if (saved) setSecret(saved);
+    if (saved) {
+      setSecret(saved);
+    } else {
+      setAuthenticated(false); // no saved token → show gate
+    }
   }, []);
 
   // When secret is restored from storage, authenticate automatically
   useEffect(() => {
-    if (secret && !authenticated) {
+    if (secret && authenticated !== true) {
       fetchSessions();
     }
     // fetchSessions is stable when secret is stable — only runs on initial restore
@@ -423,7 +430,10 @@ export default function AdminPanel() {
   }
 
   /* ─── Login screen ─────────────────────────────────────────────────────── */
-  if (!authenticated) {
+  // Still reading localStorage — render nothing to prevent gate flash
+  if (authenticated === null) return null;
+
+  if (authenticated === false) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg)]">
         <form onSubmit={(e) => { e.preventDefault(); fetchSessions(); }} className="flex gap-2">
