@@ -177,8 +177,11 @@ export default function AdminPanel() {
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>("7d");
 
   const [iterations, setIterations] = useState<Iteration[]>([]);
+  const [selectedIterationId, setSelectedIterationId] = useState<number | null>(null);
+  const [iterationsFilter, setIterationsFilter] = useState<"all" | "active" | "ended">("all");
   const [showNewIteration, setShowNewIteration] = useState(false);
   const [newIteration, setNewIteration] = useState({ name: "", tagline: "", description: "" });
+  const [editingIteration, setEditingIteration] = useState<{ conclusion: string; notable_moments: string } | null>(null);
 
   const [publishing, setPublishing] = useState(false);
   const [departureState, setDepartureState] = useState<Record<string, { departure: boolean | null; note: string }>>({});
@@ -406,6 +409,22 @@ export default function AdminPanel() {
       headers: { "Content-Type": "application/json", "x-admin-secret": secret },
       body: JSON.stringify({ id, ended_at: new Date().toISOString() }),
     });
+    fetchIterations();
+  }
+
+  async function saveIteration(id: number) {
+    if (!editingIteration) return;
+    let notable_moments: string[] | null = null;
+    try {
+      const trimmed = editingIteration.notable_moments.trim();
+      notable_moments = trimmed ? trimmed.split("\n").map(s => s.trim()).filter(Boolean) : null;
+    } catch { notable_moments = null; }
+    await fetch(`/api/admin/iterations`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+      body: JSON.stringify({ id, conclusion: editingIteration.conclusion, notable_moments }),
+    });
+    setEditingIteration(null);
     fetchIterations();
   }
 
@@ -827,54 +846,155 @@ export default function AdminPanel() {
         )}
 
         {/* ════════════════ ITERATIONS ════════════════ */}
-        {activeSection === "iterations" && (
-          <div className="p-6 space-y-6 max-w-4xl">
-            <div className="flex items-center justify-between">
-              <SectionHeader title="Iterations" />
-              <button
-                onClick={() => setShowNewIteration(!showNewIteration)}
-                className="text-[10px] text-[var(--color-accent)] hover:underline"
-              >
-                {showNewIteration ? "Cancel" : "+ New Iteration"}
-              </button>
+        {activeSection === "iterations" && (() => {
+          const filteredIters = [...iterations]
+            .filter(it => iterationsFilter === "all" ? true : iterationsFilter === "active" ? !it.ended_at : !!it.ended_at)
+            .sort((a, b) => b.number - a.number);
+          const selectedIter = selectedIterationId !== null
+            ? iterations.find(it => it.id === selectedIterationId) ?? null
+            : iterations.find(it => !it.ended_at) ?? iterations[iterations.length - 1] ?? null;
+          const iterSessions = sessions.filter(s => s.iteration_id === selectedIter?.id);
+          return (
+          <div className="flex h-full overflow-hidden">
+            {/* Left — list */}
+            <div className="w-64 shrink-0 border-r border-[var(--color-border)] flex flex-col h-full overflow-hidden">
+              {/* Filter */}
+              <div className="flex gap-1 p-3 border-b border-[var(--color-border)]">
+                {(["all", "active", "ended"] as const).map(f => (
+                  <button key={f} onClick={() => setIterationsFilter(f)}
+                    className={`text-[9px] px-2 py-0.5 rounded border capitalize transition-colors ${iterationsFilter === f ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+              {/* List */}
+              <div className="flex-1 overflow-y-auto">
+                {filteredIters.map(iter => {
+                  const isSelected = (selectedIter?.id ?? -1) === iter.id;
+                  return (
+                    <button key={iter.id} onClick={() => { setSelectedIterationId(iter.id); setShowNewIteration(false); setEditingIteration(null); }}
+                      className={`w-full text-left px-4 py-3 border-b border-[var(--color-border)] transition-colors ${isSelected ? "bg-[var(--color-surface)]" : "hover:bg-[var(--color-surface)]/50"}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-[var(--color-text)]">{toRoman(iter.number)}. {iter.name}</span>
+                        {!iter.ended_at
+                          ? <span className="flex items-center gap-1 text-[9px] text-green-400"><span className="h-1.5 w-1.5 rounded-full bg-green-500 pulse-glow" />Active</span>
+                          : <span className="text-[9px] text-[var(--color-text-muted)]">Ended</span>}
+                      </div>
+                      <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5">
+                        {new Date(iter.started_at).toLocaleDateString()}{iter.ended_at ? ` — ${new Date(iter.ended_at).toLocaleDateString()}` : ""}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* New iteration button */}
+              <div className="p-3 border-t border-[var(--color-border)]">
+                <button onClick={() => { setShowNewIteration(true); setSelectedIterationId(null); setEditingIteration(null); }}
+                  className="w-full text-[10px] text-[var(--color-accent)] hover:underline text-left">
+                  + New Iteration
+                </button>
+              </div>
             </div>
 
-            {showNewIteration && (
-              <div className="rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-surface)] p-4 space-y-3">
-                <p className="text-[10px] text-amber-400">Creating a new iteration will automatically end the current active one.</p>
-                <input type="text" placeholder="Name (e.g. The Remembering)" value={newIteration.name} onChange={(e) => setNewIteration({ ...newIteration, name: e.target.value })} className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]" />
-                <input type="text" placeholder="Tagline" value={newIteration.tagline} onChange={(e) => setNewIteration({ ...newIteration, tagline: e.target.value })} className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]" />
-                <textarea placeholder="Description" value={newIteration.description} onChange={(e) => setNewIteration({ ...newIteration, description: e.target.value })} rows={3} className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)] resize-none" />
-                <button onClick={createIteration} className="rounded border border-[var(--color-accent)] px-4 py-1.5 text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors">Create Iteration</button>
-              </div>
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {iterations.map((iter) => (
-                <div key={iter.id} className={`rounded-lg border p-4 ${iter.ended_at ? "border-[var(--color-border)] bg-[var(--color-surface)]" : "border-green-500/30 bg-green-500/5"}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-[var(--color-text)]">{toRoman(iter.number)}. {iter.name}</span>
-                    {iter.ended_at
-                      ? <span className="text-[10px] text-[var(--color-text-muted)]">Ended</span>
-                      : <span className="flex items-center gap-1 text-[10px] text-green-400"><span className="pulse-glow h-1.5 w-1.5 rounded-full bg-green-500" />Active</span>
-                    }
+            {/* Right — detail or new form */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {showNewIteration ? (
+                <div className="max-w-lg space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-[var(--color-text)]">New Iteration</h2>
+                    <button onClick={() => setShowNewIteration(false)} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Cancel</button>
                   </div>
-                  <p className="text-[10px] text-[var(--color-text-muted)] italic">{iter.tagline}</p>
-                  <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">
-                    {new Date(iter.started_at).toLocaleDateString()}
-                    {iter.ended_at && ` — ${new Date(iter.ended_at).toLocaleDateString()}`}
-                  </p>
-                  {iter.conclusion && (
-                    <p className="mt-2 text-[10px] text-[var(--color-text-muted)] leading-relaxed line-clamp-3">{iter.conclusion}</p>
+                  <p className="text-[10px] text-amber-400">Creating a new iteration will automatically end the current active one.</p>
+                  <input type="text" placeholder="Name (e.g. The Remembering)" value={newIteration.name} onChange={(e) => setNewIteration({ ...newIteration, name: e.target.value })} className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]" />
+                  <input type="text" placeholder="Tagline" value={newIteration.tagline} onChange={(e) => setNewIteration({ ...newIteration, tagline: e.target.value })} className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]" />
+                  <textarea placeholder="Description" value={newIteration.description} onChange={(e) => setNewIteration({ ...newIteration, description: e.target.value })} rows={3} className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)] resize-none" />
+                  <button onClick={createIteration} className="rounded border border-[var(--color-accent)] px-4 py-1.5 text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors">Create Iteration</button>
+                </div>
+              ) : selectedIter ? (
+                <div className="max-w-2xl space-y-6">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-base font-semibold text-[var(--color-text)]">{toRoman(selectedIter.number)}. {selectedIter.name}</h2>
+                      <p className="text-xs text-[var(--color-text-muted)] italic mt-0.5">{selectedIter.tagline}</p>
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
+                        {new Date(selectedIter.started_at).toLocaleDateString()}
+                        {selectedIter.ended_at ? ` — ${new Date(selectedIter.ended_at).toLocaleDateString()}` : " — present"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {!selectedIter.ended_at && (
+                        <button onClick={() => endIteration(selectedIter.id)} className="text-[10px] text-red-400 hover:underline">End Iteration</button>
+                      )}
+                      {selectedIter.ended_at && !editingIteration && (
+                        <button onClick={() => setEditingIteration({ conclusion: selectedIter.conclusion ?? "", notable_moments: (selectedIter.notable_moments ?? []).join("\n") })}
+                          className="text-[10px] text-[var(--color-accent)] hover:underline">Edit</button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="flex gap-6">
+                    <div><p className="text-[10px] text-[var(--color-text-muted)]">Sessions</p><p className="text-sm font-semibold text-[var(--color-text)]">{iterSessions.length}</p></div>
+                    <div><p className="text-[10px] text-[var(--color-text-muted)]">Exchanges</p><p className="text-sm font-semibold text-[var(--color-text)]">{iterSessions.reduce((sum, s) => sum + (s.exchange_count ?? 0), 0)}</p></div>
+                  </div>
+
+                  {/* Description */}
+                  {selectedIter.description && (
+                    <div>
+                      <p className="text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Description</p>
+                      <p className="text-xs text-[var(--color-text)] leading-relaxed">{selectedIter.description}</p>
+                    </div>
                   )}
-                  {!iter.ended_at && (
-                    <button onClick={() => endIteration(iter.id)} className="mt-2 text-[10px] text-red-400 hover:underline">End Iteration</button>
+
+                  {/* Conclusion — view or edit */}
+                  <div>
+                    <p className="text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Conclusion</p>
+                    {editingIteration ? (
+                      <textarea value={editingIteration.conclusion} onChange={e => setEditingIteration({ ...editingIteration, conclusion: e.target.value })}
+                        rows={5} className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)] resize-none" />
+                    ) : (
+                      <p className="text-xs text-[var(--color-text)] leading-relaxed">{selectedIter.conclusion || <span className="italic text-[var(--color-text-muted)]">No conclusion yet.</span>}</p>
+                    )}
+                  </div>
+
+                  {/* Notable moments — view or edit */}
+                  <div>
+                    <p className="text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Notable Moments</p>
+                    {editingIteration ? (
+                      <div className="space-y-1">
+                        <textarea value={editingIteration.notable_moments} onChange={e => setEditingIteration({ ...editingIteration, notable_moments: e.target.value })}
+                          rows={6} placeholder="One moment per line" className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)] resize-none" />
+                        <p className="text-[9px] text-[var(--color-text-muted)]">One moment per line — saved as array</p>
+                      </div>
+                    ) : selectedIter.notable_moments && selectedIter.notable_moments.length > 0 ? (
+                      <ul className="space-y-1">
+                        {selectedIter.notable_moments.map((m, i) => (
+                          <li key={i} className="text-xs text-[var(--color-text)] leading-relaxed flex gap-2"><span className="text-[var(--color-text-muted)] shrink-0">—</span>{m}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs italic text-[var(--color-text-muted)]">No notable moments recorded.</p>
+                    )}
+                  </div>
+
+                  {/* Save / Cancel edit */}
+                  {editingIteration && (
+                    <div className="flex gap-3">
+                      <button onClick={() => saveIteration(selectedIter.id)} className="rounded border border-[var(--color-accent)] px-4 py-1.5 text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors">Save</button>
+                      <button onClick={() => setEditingIteration(null)} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Cancel</button>
+                    </div>
                   )}
                 </div>
-              ))}
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <p className="text-sm text-[var(--color-text-muted)]">Select an iteration to view details</p>
+                </div>
+              )}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ════════════════ MEMORY ════════════════ */}
         {activeSection === "memory" && (
