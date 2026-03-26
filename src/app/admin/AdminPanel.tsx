@@ -56,6 +56,28 @@ interface AnalyticsStats {
   totalExchanges: number;
 }
 
+interface PassRateStat { iteration: number; name: string; total_exchanges: string; passes: string; pass_pct: string; }
+interface AgentPassStat { agent: string; total: string; passes: string; pass_pct: string; }
+interface HingeOverTime { week: string; confirmed: string; rejected: string; }
+interface GeoStat { country: string; views: string; }
+interface CityStat { city: string; country: string; views: string; }
+interface GroundRefStat { id: number; preview: string; reference_count: string; }
+interface AvgTimeStat { path: string; avg_seconds: string; }
+
+interface ExperimentData {
+  passRates: PassRateStat[];
+  agentPasses: AgentPassStat[];
+  hingeStats: { confirmed: string; rejected: string; pending: string } | null;
+  sessionsSinceLastHinge: number;
+  avgExchangesPerSession: string | null;
+  groundRefs: GroundRefStat[];
+  geoCountries: GeoStat[];
+  geoCities: CityStat[];
+  hingesOverTime: HingeOverTime[];
+  returnVisitors: number | null;
+  avgTimeByPath: AvgTimeStat[];
+}
+
 interface Hinge {
   id: number;
   content: string;
@@ -192,6 +214,7 @@ export default function AdminPanel() {
 
   const [analytics, setAnalytics] = useState<AnalyticsStats | null>(null);
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>("7d");
+  const [experimentData, setExperimentData] = useState<ExperimentData | null>(null);
 
   const [iterations, setIterations] = useState<Iteration[]>([]);
   const [selectedIterationId, setSelectedIterationId] = useState<number | null>(null);
@@ -248,6 +271,14 @@ export default function AdminPanel() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchExperimentData = useCallback(async (range: AnalyticsRange) => {
+    const rangeParam = range === "all" ? "all" : range.replace("d", "");
+    try {
+      const res = await fetch(`/api/analytics/experiment?range=${rangeParam}`);
+      if (res.ok) setExperimentData(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
   const fetchIterations = useCallback(async () => {
     const res = await fetch(`/api/admin/iterations?secret=${secret}`);
     if (res.ok) setIterations((await res.json()).iterations);
@@ -271,12 +302,13 @@ export default function AdminPanel() {
       localStorage.setItem("admin_secret", secret);
       fetchIterations();
       fetchAnalytics(analyticsRange);
+      fetchExperimentData(analyticsRange);
       fetchHinges();
       fetchProposals();
     } else {
       alert("Invalid admin secret");
     }
-  }, [secret, fetchIterations, fetchAnalytics, analyticsRange, fetchHinges, fetchProposals]);
+  }, [secret, fetchIterations, fetchAnalytics, fetchExperimentData, analyticsRange, fetchHinges, fetchProposals]);
 
   const fetchExchanges = useCallback(async (sessionId: string) => {
     setSelectedSession(sessionId);
@@ -610,7 +642,7 @@ export default function AdminPanel() {
                     {(Object.keys(RANGE_LABELS) as AnalyticsRange[]).map((r) => (
                       <button
                         key={r}
-                        onClick={() => { setAnalyticsRange(r); fetchAnalytics(r); }}
+                        onClick={() => { setAnalyticsRange(r); fetchAnalytics(r); fetchExperimentData(r); }}
                         className={`px-3 py-1 text-[10px] rounded-full border transition-colors ${
                           analyticsRange === r
                             ? "border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10"
@@ -623,16 +655,23 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                {/* Metric tiles */}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                {/* Row 1 — Key Numbers (audience + experiment) */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <MetricCard label="Watching Now" value={analytics.liveViewers} live={analytics.liveViewers > 0} />
                   <MetricCard label="Views" value={analytics.totalViews} />
                   <MetricCard label="Unique Visitors" value={analytics.uniqueVisitors} />
+                  <MetricCard label="Return Visitors" value={experimentData?.returnVisitors ?? 0} />
                   <MetricCard label="Sessions" value={analytics.totalSessions} />
                   <MetricCard label="Exchanges" value={analytics.totalExchanges} />
+                  <MetricCard label="Confirmed Hinges" value={parseInt(experimentData?.hingeStats?.confirmed ?? "0")} />
+                  <MetricCard
+                    label="Since Last Hinge"
+                    value={experimentData?.sessionsSinceLastHinge ?? 0}
+                    alert={(experimentData?.sessionsSinceLastHinge ?? 0) >= 6 ? "red" : (experimentData?.sessionsSinceLastHinge ?? 0) >= 3 ? "amber" : "green"}
+                  />
                 </div>
 
-                {/* Daily chart */}
+                {/* Row 2 — Daily Views */}
                 {analytics.dailyViews.length > 0 && (
                   <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
                     <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Daily Views</p>
@@ -640,7 +679,239 @@ export default function AdminPanel() {
                   </div>
                 )}
 
-                {/* Top pages + experiment stats */}
+                {/* Row 3 — Experiment Health */}
+                {experimentData && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Experiment Health</p>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+
+                      {/* Chart A: Pass Rate by Iteration */}
+                      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Pass Rate by Iteration</p>
+                        {experimentData.passRates.length === 0 ? (
+                          <p className="text-[10px] text-[var(--color-text-muted)] italic">No data</p>
+                        ) : (
+                          <div className="flex items-end gap-2 h-20">
+                            {experimentData.passRates.map((pr) => {
+                              const pct = parseFloat(pr.pass_pct) || 0;
+                              const height = Math.max((pct / 100) * 100, 2);
+                              return (
+                                <div key={pr.iteration} className="group relative flex-1 flex flex-col items-center" style={{ height: "100%" }}>
+                                  <div
+                                    className="absolute bottom-4 w-full rounded-sm bg-[var(--color-accent)]/50 hover:bg-[var(--color-accent)] transition-colors cursor-default"
+                                    style={{ height: `calc(${height}% - 16px)` }}
+                                  />
+                                  <span className="absolute bottom-0 text-[9px] text-[var(--color-text-muted)]">{toRoman(pr.iteration)}</span>
+                                  <div className="absolute bottom-full mb-5 left-1/2 -translate-x-1/2 hidden group-hover:block z-10 whitespace-nowrap">
+                                    <div className="rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-2 py-1 text-[10px] text-[var(--color-text)] shadow-lg">
+                                      {pr.name}: {pct}% pass
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Chart B: Agent Pass Rates, current iteration */}
+                      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Agent Pass Rates (Current)</p>
+                        {experimentData.agentPasses.length === 0 ? (
+                          <p className="text-[10px] text-[var(--color-text-muted)] italic">No data</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {experimentData.agentPasses.map((ap) => {
+                              const pct = parseFloat(ap.pass_pct) || 0;
+                              return (
+                                <div key={ap.agent}>
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-[10px] text-[var(--color-text)] capitalize">{ap.agent}</span>
+                                    <span className="text-[9px] text-[var(--color-text-muted)]">{pct}%</span>
+                                  </div>
+                                  <div className="h-1.5 rounded-full bg-[var(--color-bg)]">
+                                    <div
+                                      className="h-1.5 rounded-full bg-[var(--color-accent)]/60 transition-all"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Chart C: Hinges Over Time */}
+                      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Hinges Over Time</p>
+                        {experimentData.hingesOverTime.length === 0 ? (
+                          <p className="text-[10px] text-[var(--color-text-muted)] italic">No data</p>
+                        ) : (
+                          <div className="flex items-end gap-[3px] h-20">
+                            {experimentData.hingesOverTime.map((h) => {
+                              const confirmed = parseInt(h.confirmed);
+                              const rejected = parseInt(h.rejected);
+                              const total = confirmed + rejected;
+                              const maxTotal = Math.max(...experimentData.hingesOverTime.map(x => parseInt(x.confirmed) + parseInt(x.rejected)), 1);
+                              const totalH = Math.max((total / maxTotal) * 100, total > 0 ? 4 : 0);
+                              const confirmedH = total > 0 ? (confirmed / total) * totalH : 0;
+                              const rejectedH = totalH - confirmedH;
+                              const weekLabel = new Date(h.week).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                              return (
+                                <div key={h.week} className="group relative flex-1 min-w-0" style={{ height: "100%" }}>
+                                  {/* Rejected (red) on bottom, confirmed (green) on top */}
+                                  {rejectedH > 0 && (
+                                    <div className="absolute bottom-0 w-full rounded-b-sm bg-red-500/30"
+                                      style={{ height: `${rejectedH}%` }} />
+                                  )}
+                                  {confirmedH > 0 && (
+                                    <div className="absolute w-full rounded-t-sm bg-green-500/50"
+                                      style={{ bottom: `${rejectedH}%`, height: `${confirmedH}%` }} />
+                                  )}
+                                  {total > 0 && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-10 whitespace-nowrap">
+                                      <div className="rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-2 py-1 text-[10px] text-[var(--color-text)] shadow-lg">
+                                        {weekLabel}: {confirmed}✓ {rejected}✕
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <div className="flex gap-3 mt-2">
+                          <span className="flex items-center gap-1 text-[9px] text-[var(--color-text-muted)]">
+                            <span className="inline-block w-2 h-2 rounded-sm bg-green-500/50" />confirmed
+                          </span>
+                          <span className="flex items-center gap-1 text-[9px] text-[var(--color-text-muted)]">
+                            <span className="inline-block w-2 h-2 rounded-sm bg-red-500/30" />rejected
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Row 4 — Ground Health */}
+                {experimentData && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Ground Health</p>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+
+                      {/* Most referenced hinges */}
+                      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Most Referenced Hinges</p>
+                        {experimentData.groundRefs.length === 0 ? (
+                          <p className="text-[10px] text-[var(--color-text-muted)] italic">No ground references found in exchange content.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {experimentData.groundRefs.map((g) => (
+                              <div key={g.id} className="flex items-start gap-2">
+                                <span className="text-[9px] text-[var(--color-accent)] font-mono mt-0.5 shrink-0 w-6">#{g.id}</span>
+                                <span className="text-[10px] text-[var(--color-text)] flex-1 leading-relaxed truncate">{g.preview}…</span>
+                                <span className="text-[9px] text-[var(--color-text-muted)] shrink-0">{g.reference_count}×</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Sessions Since Last Hinge — canary metric */}
+                      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 flex flex-col">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Sessions Since Last Hinge</p>
+                        <div className="flex-1 flex items-center justify-center">
+                          <div className="text-center">
+                            <p className={`text-5xl font-light tabular-nums ${
+                              (experimentData.sessionsSinceLastHinge ?? 0) >= 6 ? "text-red-400" :
+                              (experimentData.sessionsSinceLastHinge ?? 0) >= 3 ? "text-amber-400" :
+                              "text-green-400"
+                            }`}>
+                              {experimentData.sessionsSinceLastHinge ?? 0}
+                            </p>
+                            <p className="text-[10px] text-[var(--color-text-muted)] mt-2">
+                              {(experimentData.sessionsSinceLastHinge ?? 0) === 0 ? "Last session had a hinge" :
+                               (experimentData.sessionsSinceLastHinge ?? 0) < 3 ? "Iteration is alive" :
+                               (experimentData.sessionsSinceLastHinge ?? 0) < 6 ? "Getting quiet" :
+                               "No hinges in a while"}
+                            </p>
+                          </div>
+                        </div>
+                        {experimentData.hingeStats && (
+                          <div className="flex gap-4 mt-4 pt-3 border-t border-[var(--color-border)]">
+                            <div className="text-center flex-1">
+                              <p className="text-xs font-light text-green-400">{experimentData.hingeStats.confirmed}</p>
+                              <p className="text-[9px] text-[var(--color-text-muted)]">confirmed</p>
+                            </div>
+                            <div className="text-center flex-1">
+                              <p className="text-xs font-light text-amber-400">{experimentData.hingeStats.pending}</p>
+                              <p className="text-[9px] text-[var(--color-text-muted)]">pending</p>
+                            </div>
+                            <div className="text-center flex-1">
+                              <p className="text-xs font-light text-red-400/70">{experimentData.hingeStats.rejected}</p>
+                              <p className="text-[9px] text-[var(--color-text-muted)]">rejected</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Row 5 — Audience Geography */}
+                {experimentData && (experimentData.geoCountries.length > 0 || experimentData.geoCities.length > 0) && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Audience Geography</p>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+
+                      {/* Top Countries */}
+                      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Top Countries</p>
+                        {experimentData.geoCountries.length === 0 ? (
+                          <p className="text-[10px] text-[var(--color-text-muted)] italic">Geo data will appear after new views are recorded.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {experimentData.geoCountries.slice(0, 10).map((g) => {
+                              const views = parseInt(g.views);
+                              const maxViews = parseInt(experimentData.geoCountries[0]?.views || "1");
+                              return (
+                                <div key={g.country}>
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-xs text-[var(--color-text)]">{g.country}</span>
+                                    <span className="text-[9px] text-[var(--color-text-muted)]">{views}</span>
+                                  </div>
+                                  <div className="h-1 rounded-full bg-[var(--color-bg)]">
+                                    <div className="h-1 rounded-full bg-[var(--color-accent)]/50" style={{ width: `${(views / maxViews) * 100}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Top Cities */}
+                      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Top Cities</p>
+                        {experimentData.geoCities.length === 0 ? (
+                          <p className="text-[10px] text-[var(--color-text-muted)] italic">Geo data will appear after new views are recorded.</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {experimentData.geoCities.slice(0, 10).map((c, i) => (
+                              <div key={i} className="flex items-center justify-between">
+                                <span className="text-[10px] text-[var(--color-text)]">{c.city}</span>
+                                <span className="text-[9px] text-[var(--color-text-muted)]">{c.country} · {c.views}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Row 6 — Top Pages + Experiment Stats */}
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
                     <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Top Pages</p>
@@ -648,11 +919,17 @@ export default function AdminPanel() {
                       {analytics.viewsByPage.map((p) => {
                         const count = parseInt(p.count);
                         const maxCount = parseInt(analytics.viewsByPage[0]?.count || "1");
+                        const avgSeconds = experimentData?.avgTimeByPath.find(t => t.path === p.path)?.avg_seconds;
                         return (
                           <div key={p.path}>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-[var(--color-text)] truncate">{p.path}</span>
-                              <span className="text-[10px] text-[var(--color-text-muted)] ml-2 shrink-0">{count}</span>
+                              <span className="text-xs text-[var(--color-text)] truncate flex-1">{p.path}</span>
+                              {avgSeconds && (
+                                <span className="text-[9px] text-[var(--color-text-muted)]/60 mx-2 shrink-0">
+                                  ~{Math.round(parseInt(avgSeconds) / 60)}m
+                                </span>
+                              )}
+                              <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">{count}</span>
                             </div>
                             <div className="h-1 rounded-full bg-[var(--color-bg)]">
                               <div className="h-1 rounded-full bg-[var(--color-accent)]" style={{ width: `${(count / maxCount) * 100}%` }} />
@@ -666,7 +943,8 @@ export default function AdminPanel() {
                   <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
                     <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-3">Experiment Stats</p>
                     <div className="space-y-3">
-                      <StatRow label="Avg Exchanges / Session" value={analytics.totalSessions > 0 ? (analytics.totalExchanges / analytics.totalSessions).toFixed(1) : "—"} />
+                      <StatRow label="Avg Exchanges / Session (all)" value={analytics.totalSessions > 0 ? (analytics.totalExchanges / analytics.totalSessions).toFixed(1) : "—"} />
+                      <StatRow label="Avg Exchanges / Session (current)" value={experimentData?.avgExchangesPerSession ?? "—"} />
                       <StatRow label="Avg Views / Day" value={analytics.dailyViews.length > 0 ? (analytics.dailyViews.reduce((s, d) => s + parseInt(d.count), 0) / analytics.dailyViews.length).toFixed(1) : "—"} />
                       <StatRow label="Views / Session" value={analytics.totalSessions > 0 ? (analytics.totalViews / analytics.totalSessions).toFixed(1) : "—"} />
                     </div>
@@ -1480,11 +1758,16 @@ function StatRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MetricCard({ label, value, live }: { label: string; value: number; live?: boolean }) {
+function MetricCard({ label, value, live, alert: alertLevel }: { label: string; value: number; live?: boolean; alert?: "green" | "amber" | "red" }) {
+  const valueColor =
+    alertLevel === "red" ? "text-red-400" :
+    alertLevel === "amber" ? "text-amber-400" :
+    alertLevel === "green" ? "text-green-400" :
+    "text-[var(--color-text)]";
   return (
     <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
       <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{label}</p>
-      <p className="mt-1 text-lg font-light text-[var(--color-text)] flex items-center gap-2">
+      <p className={`mt-1 text-lg font-light flex items-center gap-2 ${valueColor}`}>
         {live && <span className="pulse-glow h-2 w-2 rounded-full bg-green-500" />}
         {value.toLocaleString()}
       </p>

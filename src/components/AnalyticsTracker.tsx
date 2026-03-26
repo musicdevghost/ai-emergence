@@ -12,17 +12,27 @@ function getViewerId(): string {
   return id;
 }
 
+function getPersistentViewerId(): string {
+  let id = localStorage.getItem("emergence_visitor_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("emergence_visitor_id", id);
+  }
+  return id;
+}
+
 export function AnalyticsTracker() {
   const pathname = usePathname();
 
   useEffect(() => {
     const viewerId = getViewerId();
+    const persistentViewerId = getPersistentViewerId();
 
     // Record page view
     fetch("/api/analytics/view", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: pathname, viewerId }),
+      body: JSON.stringify({ path: pathname, viewerId, persistentViewerId }),
     }).catch(() => {});
 
     // Start heartbeat
