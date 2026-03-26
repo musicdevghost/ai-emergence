@@ -15,8 +15,10 @@ function getHingesPromise(): Promise<HingesMap> {
       .then((r) => r.json())
       .then((data) => {
         const map: HingesMap = new Map();
-        (data.hinges ?? []).forEach((h: { id: number; content: string }) => {
-          map.set(h.id, h.content);
+        // Key by 1-based position in creation order — matches how agents receive ground
+        // e.g. "Ground 15" = 15th confirmed hinge by created_at ASC, not id=15
+        (data.hinges ?? []).forEach((h: { id: number; content: string }, i: number) => {
+          map.set(i + 1, h.content);
         });
         cache = map;
         return map;
