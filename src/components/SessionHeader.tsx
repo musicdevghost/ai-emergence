@@ -141,7 +141,7 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "complete") {
     return (
       <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-[10px] sm:text-xs text-[var(--color-text-muted)]">
-        Complete
+        Resting
       </span>
     );
   }
