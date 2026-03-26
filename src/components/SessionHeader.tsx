@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 
 interface SessionHeaderProps {
@@ -9,113 +8,55 @@ interface SessionHeaderProps {
   stats?: { totalExchanges: number; iterationCount: number } | null;
 }
 
-export function SessionHeader({
-  status,
-  iteration,
-  stats,
-}: SessionHeaderProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
+export function SessionHeader({ status, iteration, stats }: SessionHeaderProps) {
   return (
     <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)]/80 backdrop-blur-md">
-      <div className="mx-auto max-w-2xl px-4 py-3 sm:py-4">
-        {/* Desktop: rows */}
-        <div className="hidden sm:flex sm:flex-col sm:gap-1.5">
-          {/* Row 1: Title left, Nav right */}
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-lg font-semibold tracking-wider uppercase text-[var(--color-text)]">
-              Emergence
-            </Link>
-            <div className="flex items-center gap-5">
-              <Link
-                href="/observatory"
-                className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-              >
-                Observatory
-              </Link>
-              <Link
-                href="/about"
-                className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-              >
-                About
-              </Link>
-            </div>
-          </div>
-          {/* Row 2: Iteration + status */}
-          <div className="flex items-center gap-3">
-            {iteration && (
-              <span className="text-sm text-[var(--color-text-muted)]">
-                Iteration {toRoman(iteration.number)} — {iteration.name}
-              </span>
-            )}
-            <StatusBadge status={status} />
-          </div>
-          {/* Row 3: Global experiment stats */}
-          {stats && (
-            <p className="text-[10px] text-[var(--color-text-muted)]">
-              {stats.totalExchanges.toLocaleString()} exchanges across {stats.iterationCount} iterations —{" "}
-              <Link href="/observatory" className="underline underline-offset-2 hover:text-[var(--color-accent)] transition-colors">
-                read the full record
-              </Link>
-            </p>
-          )}
-        </div>
-
-        {/* Mobile: compact row with iteration visible */}
-        <div className="flex sm:hidden items-center justify-between">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Link href="/" className="text-sm font-semibold tracking-wider uppercase text-[var(--color-text)] shrink-0">
-              Emergence
-            </Link>
-            {iteration && (
-              <span className="text-[10px] text-[var(--color-text-muted)] truncate">
-                {iteration.name}
-              </span>
-            )}
-            <StatusBadge status={status} />
-          </div>
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors shrink-0"
-            aria-label="Menu"
+      <div className="mx-auto max-w-2xl px-4 py-3">
+        {/* Row 1: Title + Nav */}
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="text-base sm:text-lg font-semibold tracking-wider uppercase text-[var(--color-text)]"
           >
-            {menuOpen ? (
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            )}
-          </button>
+            Emergence
+          </Link>
+          <div className="flex items-center gap-4 sm:gap-5">
+            <Link
+              href="/observatory"
+              className="text-xs sm:text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            >
+              Observatory
+            </Link>
+            <Link
+              href="/about"
+              className="text-xs sm:text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            >
+              About
+            </Link>
+          </div>
         </div>
 
-        {/* Mobile menu dropdown */}
-        {menuOpen && (
-          <div className="sm:hidden mt-3 pt-3 border-t border-[var(--color-border)] space-y-3">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/observatory"
-                className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-                onClick={() => setMenuOpen(false)}
-              >
-                Observatory
-              </Link>
-              <Link
-                href="/about"
-                className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-                onClick={() => setMenuOpen(false)}
-              >
-                About
-              </Link>
-            </div>
-            {stats && (
-              <p className="text-[10px] text-[var(--color-text-muted)]">
-                {stats.totalExchanges.toLocaleString()} exchanges across {stats.iterationCount} iterations
-              </p>
-            )}
-          </div>
+        {/* Row 2: Iteration + status */}
+        <div className="flex items-center gap-2 mt-1">
+          {iteration && (
+            <span className="text-xs sm:text-sm text-[var(--color-text-muted)]">
+              Iteration {toRoman(iteration.number)} — {iteration.name}
+            </span>
+          )}
+          <StatusBadge status={status} />
+        </div>
+
+        {/* Row 3: Stats — always visible */}
+        {stats && (
+          <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+            {stats.totalExchanges.toLocaleString()} exchanges across {stats.iterationCount} iterations —{" "}
+            <Link
+              href="/observatory"
+              className="underline underline-offset-2 hover:text-[var(--color-accent)] transition-colors"
+            >
+              read the full record
+            </Link>
+          </p>
         )}
       </div>
     </header>

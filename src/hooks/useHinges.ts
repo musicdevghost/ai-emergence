@@ -4,44 +4,41 @@ import { useState, useEffect } from "react";
 
 export type HingesMap = Map<number, string>;
 
-// Module-level cache shared across all component instances
+// Module-level cache — single fetch, result shared via promise
 let cache: HingesMap | null = null;
-const listeners = new Set<(m: HingesMap) => void>();
-let fetchStarted = false;
+let hingesPromise: Promise<HingesMap> | null = null;
 
-function loadHinges() {
-  if (fetchStarted) return;
-  fetchStarted = true;
-  fetch("/api/hinges")
-    .then((r) => r.json())
-    .then((data) => {
-      const map: HingesMap = new Map();
-      (data.hinges ?? []).forEach((h: { id: number; content: string }) => {
-        map.set(h.id, h.content);
+function getHingesPromise(): Promise<HingesMap> {
+  if (cache !== null) return Promise.resolve(cache);
+  if (!hingesPromise) {
+    hingesPromise = fetch("/api/hinges")
+      .then((r) => r.json())
+      .then((data) => {
+        const map: HingesMap = new Map();
+        (data.hinges ?? []).forEach((h: { id: number; content: string }) => {
+          map.set(h.id, h.content);
+        });
+        cache = map;
+        return map;
+      })
+      .catch(() => {
+        cache = new Map();
+        return cache;
       });
-      cache = map;
-      listeners.forEach((fn) => fn(map));
-      listeners.clear();
-    })
-    .catch(() => {
-      cache = new Map();
-      listeners.forEach((fn) => fn(new Map()));
-      listeners.clear();
-    });
+  }
+  return hingesPromise;
 }
 
 export function useHinges(): HingesMap {
   const [map, setMap] = useState<HingesMap>(cache ?? new Map());
 
   useEffect(() => {
-    if (cache !== null) {
-      setMap(cache);
-      return;
-    }
-    listeners.add(setMap);
-    loadHinges();
+    let cancelled = false;
+    getHingesPromise().then((m) => {
+      if (!cancelled) setMap(m);
+    });
     return () => {
-      listeners.delete(setMap);
+      cancelled = true;
     };
   }, []);
 
