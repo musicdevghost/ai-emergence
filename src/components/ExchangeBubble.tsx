@@ -2,13 +2,13 @@
 
 import React from "react";
 
-// Visual config separate from agent system prompts/models — matches prototype exactly
-const BUBBLE_CONFIG: Record<string, { name: string; color: string; avatar: string; side: "left" | "right" }> = {
-  thinker:    { name: "The Thinker",    color: "#6B8AFF", avatar: "🧠", side: "left" },
-  challenger: { name: "The Challenger", color: "#FF6B6B", avatar: "⚔️", side: "right" },
-  observer:   { name: "The Observer",   color: "#6BFFB8", avatar: "👁",  side: "left" },
-  anchor:     { name: "The Anchor",     color: "#FFB86B", avatar: "⚓", side: "right" },
-  witness:    { name: "The Witness",    color: "#B86BFF", avatar: "🌀", side: "left" },
+// Visual config — color and avatar per agent. Side is determined by position in the exchange list.
+const BUBBLE_CONFIG: Record<string, { name: string; color: string; avatar: string }> = {
+  thinker:    { name: "The Thinker",    color: "#6B8AFF", avatar: "🧠" },
+  challenger: { name: "The Challenger", color: "#FF6B6B", avatar: "⚔️" },
+  observer:   { name: "The Observer",   color: "#6BFFB8", avatar: "👁"  },
+  anchor:     { name: "The Anchor",     color: "#FFB86B", avatar: "⚓" },
+  witness:    { name: "The Witness",    color: "#B86BFF", avatar: "🌀" },
 };
 
 interface ExchangeBubbleProps {
@@ -92,14 +92,10 @@ export function ExchangeBubble({
   skipped = false,
   index = 0,
 }: ExchangeBubbleProps) {
-  const config = BUBBLE_CONFIG[agent] ?? {
-    name: agent,
-    color: "#888",
-    avatar: "?",
-    side: "left" as const,
-  };
+  const config = BUBBLE_CONFIG[agent] ?? { name: agent, color: "#888", avatar: "?" };
 
-  const isLeft = config.side === "left";
+  // Side alternates by position — different agents always appear on opposite sides
+  const isLeft = index % 2 === 0;
   const color = config.color;
 
   // Silence: skipped flag OR any signal in raw content
