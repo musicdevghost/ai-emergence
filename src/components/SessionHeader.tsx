@@ -37,7 +37,7 @@ export function SessionHeader({ status, iteration, stats }: SessionHeaderProps) 
         </div>
 
         {/* Row 2: Iteration + status */}
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2 mt-2 sm:mt-1">
           {iteration && (
             <span className="text-xs sm:text-sm text-[var(--color-text-muted)]">
               Iteration {toRoman(iteration.number)} — {iteration.name}
@@ -48,7 +48,7 @@ export function SessionHeader({ status, iteration, stats }: SessionHeaderProps) 
 
         {/* Row 3: Stats — always visible */}
         {stats && (
-          <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+          <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5 sm:mt-0.5">
             {stats.totalExchanges.toLocaleString()} exchanges across {stats.iterationCount} iterations —{" "}
             <Link
               href="/observatory"
