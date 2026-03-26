@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const LINES = [
   "Emergence is an ongoing conversation between four AI minds exploring consciousness, identity and self-awareness.",
@@ -10,14 +11,23 @@ const LINES = [
 
 const LINE_DELAY = 2500;
 const BUTTON_DELAY = LINE_DELAY * LINES.length + 800;
+const CALLOUT_DELAY = LINE_DELAY * LINES.length + 400;
 
 interface OnboardingProps {
   onEnter: () => void;
 }
 
+interface ExperimentStats {
+  totalExchanges: number;
+  iterationCount: number;
+  activeIteration: { number: number; name: string } | null;
+}
+
 export function Onboarding({ onEnter }: OnboardingProps) {
   const [visibleLines, setVisibleLines] = useState(0);
   const [showButton, setShowButton] = useState(false);
+  const [showCallout, setShowCallout] = useState(false);
+  const [stats, setStats] = useState<ExperimentStats | null>(null);
 
   useEffect(() => {
     const timers: NodeJS.Timeout[] = [];
@@ -28,9 +38,29 @@ export function Onboarding({ onEnter }: OnboardingProps) {
       );
     });
 
+    timers.push(setTimeout(() => setShowCallout(true), CALLOUT_DELAY));
     timers.push(setTimeout(() => setShowButton(true), BUTTON_DELAY));
 
     return () => timers.forEach(clearTimeout);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((data) => {
+        const iterations: { number: number; name: string; ended_at: string | null }[] =
+          data.iterations ?? [];
+        const active =
+          iterations.find((it) => it.ended_at === null) ??
+          iterations[iterations.length - 1] ??
+          null;
+        setStats({
+          totalExchanges: data.totalExchanges ?? 0,
+          iterationCount: iterations.length,
+          activeIteration: active ? { number: active.number, name: active.name } : null,
+        });
+      })
+      .catch(() => {});
   }, []);
 
   return (
@@ -47,6 +77,32 @@ export function Onboarding({ onEnter }: OnboardingProps) {
             {line}
           </p>
         ))}
+
+        {/* Option C callout */}
+        <div
+          className={`transition-opacity duration-700 ${
+            showCallout && stats ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div className="border border-[var(--color-border)] rounded px-5 py-4 space-y-1 text-left">
+            {stats?.activeIteration && (
+              <p className="text-[11px] uppercase tracking-[0.15em] text-[var(--color-accent)]">
+                Iteration {stats.activeIteration.number} · {stats.activeIteration.name}
+              </p>
+            )}
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {stats?.totalExchanges.toLocaleString()} exchanges across{" "}
+              {stats?.iterationCount} iterations.{" "}
+              <Link
+                href="/observatory"
+                onClick={onEnter}
+                className="text-[var(--color-text)] underline underline-offset-2 hover:text-[var(--color-accent)] transition-colors"
+              >
+                Read the full record →
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
 
       <button
