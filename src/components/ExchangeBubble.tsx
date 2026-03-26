@@ -1,59 +1,57 @@
 "use client";
 
 import React from "react";
-import { AGENTS, type AgentRole } from "@/lib/agents";
+
+// Visual config separate from agent system prompts/models — matches prototype exactly
+const BUBBLE_CONFIG: Record<string, { name: string; color: string; avatar: string; side: "left" | "right" }> = {
+  thinker:    { name: "The Thinker",    color: "#6B8AFF", avatar: "🧠", side: "left" },
+  challenger: { name: "The Challenger", color: "#FF6B6B", avatar: "⚔️", side: "right" },
+  observer:   { name: "The Observer",   color: "#6BFFB8", avatar: "👁",  side: "left" },
+  anchor:     { name: "The Anchor",     color: "#FFB86B", avatar: "⚓", side: "right" },
+  witness:    { name: "The Witness",    color: "#B86BFF", avatar: "🌀", side: "left" },
+};
 
 interface ExchangeBubbleProps {
-  agent: AgentRole;
+  agent: string;
   content: string;
   exchangeNumber: number;
-  exchangeId: string;
+  exchangeId?: string;
   isNew?: boolean;
   skipped?: boolean;
+  index?: number; // for staggered animation delay
 }
 
 /** Render basic markdown: **bold**, *italic*, and nested **bold with *italic* inside** */
 export function renderContent(text: string): React.ReactNode[] {
   const result: React.ReactNode[] = [];
-  // Match **bold** or *italic* (bold first to avoid conflicts)
   const regex = /\*\*(.+?)\*\*|\*(.+?)\*/g;
   let lastIndex = 0;
   let match;
 
   while ((match = regex.exec(text)) !== null) {
-    // Add plain text before this match
     if (match.index > lastIndex) {
       result.push(<span key={`t${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>);
     }
-
     if (match[1] !== undefined) {
-      // **bold** — recursively render inner content for nested *italic*
       result.push(
         <strong key={`b${match.index}`} className="font-semibold">
           {renderInlineItalic(match[1], match.index)}
         </strong>
       );
     } else if (match[2] !== undefined) {
-      // *italic*
       result.push(
-        <em key={`i${match.index}`} className="italic text-[var(--color-text-muted)]">
-          {match[2]}
-        </em>
+        <em key={`i${match.index}`} className="italic opacity-80">{match[2]}</em>
       );
     }
-
     lastIndex = match.index + match[0].length;
   }
 
-  // Add remaining plain text
   if (lastIndex < text.length) {
     result.push(<span key={`t${lastIndex}`}>{text.slice(lastIndex)}</span>);
   }
-
   return result;
 }
 
-/** Render *italic* within already-matched bold text */
 function renderInlineItalic(text: string, parentIndex: number): React.ReactNode[] {
   const result: React.ReactNode[] = [];
   const regex = /\*(.+?)\*/g;
@@ -64,18 +62,13 @@ function renderInlineItalic(text: string, parentIndex: number): React.ReactNode[
     if (match.index > lastIndex) {
       result.push(<span key={`bi${parentIndex}_${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>);
     }
-    result.push(
-      <em key={`bie${parentIndex}_${match.index}`} className="italic">
-        {match[1]}
-      </em>
-    );
+    result.push(<em key={`bie${parentIndex}_${match.index}`} className="italic">{match[1]}</em>);
     lastIndex = match.index + match[0].length;
   }
 
   if (lastIndex < text.length) {
     result.push(<span key={`bi${parentIndex}_${lastIndex}`}>{text.slice(lastIndex)}</span>);
   }
-
   return result.length > 0 ? result : [<span key={`bi${parentIndex}_0`}>{text}</span>];
 }
 
@@ -97,11 +90,19 @@ export function ExchangeBubble({
   exchangeNumber,
   isNew = false,
   skipped = false,
+  index = 0,
 }: ExchangeBubbleProps) {
-  const config = AGENTS[agent];
+  const config = BUBBLE_CONFIG[agent] ?? {
+    name: agent,
+    color: "#888",
+    avatar: "?",
+    side: "left" as const,
+  };
 
-  // Check for signals FIRST on raw content — before any stripping.
-  // If any signal is present, collapse the entire exchange to "chose silence".
+  const isLeft = config.side === "left";
+  const color = config.color;
+
+  // Silence: skipped flag OR any signal in raw content
   const isSilent =
     skipped ||
     content.includes("[HINGE:") ||
@@ -110,46 +111,62 @@ export function ExchangeBubble({
 
   const displayContent = isSilent ? "" : scrubDisplayContent(content);
 
-  if (isSilent) {
-    return (
-      <div className={`group px-4 py-2 ${isNew ? "line-fade" : ""}`}>
-        <div className="flex items-center gap-2">
-          <span
-            className="text-xs font-semibold uppercase tracking-wider"
-            style={{ color: config.color }}
-          >
-            {config.name}
-          </span>
-          <span className="text-[10px] text-[var(--color-text-muted)]">
-            #{exchangeNumber + 1}
-          </span>
-          <span className="text-[10px] italic text-[var(--color-text-muted)] opacity-60">
-            chose silence
-          </span>
-        </div>
-      </div>
-    );
-  }
+  const animClass = isLeft ? "bubble-slide-left" : "bubble-slide-right";
+  const animDelay = `${index * 0.05}s`;
 
   return (
     <div
-      className={`group px-4 py-3 ${isNew ? "line-fade" : ""}`}
+      className={`flex items-start gap-[10px] mb-4 ${isNew ? animClass : ""} ${isLeft ? "pr-12 flex-row" : "pl-12 flex-row-reverse"}`}
+      style={isNew ? { animationDelay: animDelay } : undefined}
     >
-      <div className="flex items-baseline gap-2 mb-1.5">
-        <span
-          className="text-xs font-semibold uppercase tracking-wider"
-          style={{ color: config.color }}
+      {/* Avatar */}
+      <div
+        className="shrink-0 flex items-center justify-center rounded-full text-base mt-0.5"
+        style={{
+          width: 36,
+          height: 36,
+          background: `${color}20`,
+          border: `2px solid ${color}40`,
+          fontSize: 16,
+        }}
+      >
+        {config.avatar}
+      </div>
+
+      {/* Name + Bubble */}
+      <div className="max-w-[85%] min-w-[60px]">
+        <div
+          className="mb-1 text-[11px] font-semibold uppercase tracking-[0.5px]"
+          style={{
+            color,
+            textAlign: isLeft ? "left" : "right",
+            fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace",
+          }}
         >
           {config.name}
-        </span>
-        <span className="text-[10px] text-[var(--color-text-muted)]">
-          #{exchangeNumber + 1}
-        </span>
-      </div>
-      <div className="rounded-2xl rounded-tl-sm bg-[var(--color-surface)] border border-[var(--color-border)] px-4 py-3 max-w-[85%]">
-        <p className="text-sm leading-relaxed text-[var(--color-text)]">
-          {renderContent(displayContent)}
-        </p>
+        </div>
+
+        <div
+          style={{
+            background: isSilent
+              ? "transparent"
+              : isLeft
+              ? "rgba(255,255,255,0.06)"
+              : "rgba(255,255,255,0.03)",
+            border: isSilent
+              ? `1px dashed ${color}30`
+              : `1px solid ${color}15`,
+            borderRadius: isLeft ? "4px 16px 16px 16px" : "16px 4px 16px 16px",
+            padding: isSilent ? "8px 14px" : "12px 16px",
+            color: isSilent ? `${color}60` : "rgba(255,255,255,0.85)",
+            fontSize: 14,
+            lineHeight: 1.55,
+            fontStyle: isSilent ? "italic" : "normal",
+            fontFamily: "'Inter', -apple-system, sans-serif",
+          }}
+        >
+          {isSilent ? "chose silence" : renderContent(displayContent)}
+        </div>
       </div>
     </div>
   );

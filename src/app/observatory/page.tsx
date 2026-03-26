@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { AGENTS, type AgentRole } from "@/lib/agents";
-import { renderContent } from "@/components/ExchangeBubble";
+import { ExchangeBubble, renderContent } from "@/components/ExchangeBubble";
 import Link from "next/link";
 
 interface Pagination {
@@ -411,41 +411,18 @@ export default function ObservatoryPage() {
                           </span>
                         </div>
                       ) : (
-                        <div className="max-h-[70vh] overflow-y-auto">
-                          {exchanges.map((ex) => {
-                            const agent = AGENTS[ex.agent];
-                            return (
-                              <div
-                                key={ex.id}
-                                className="px-5 py-4 border-b border-[var(--color-border)] last:border-b-0"
-                              >
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span
-                                    className="h-2 w-2 rounded-full"
-                                    style={{ backgroundColor: agent.color }}
-                                  />
-                                  <span
-                                    className="text-xs font-semibold uppercase tracking-wider"
-                                    style={{ color: agent.color }}
-                                  >
-                                    {agent.name}
-                                  </span>
-                                  <span className="text-[10px] text-[var(--color-text-muted)]">
-                                    Exchange #{ex.exchange_number + 1}
-                                  </span>
-                                </div>
-                                {ex.skipped ? (
-                                  <div className="text-xs italic text-[var(--color-text-muted)] opacity-60 pl-4">
-                                    chose silence
-                                  </div>
-                                ) : (
-                                  <div className="text-sm leading-relaxed text-[var(--color-text)] pl-4">
-                                    {renderContent(ex.content)}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                        <div className="max-h-[70vh] overflow-y-auto px-4 py-4">
+                          {exchanges.map((ex, i) => (
+                            <ExchangeBubble
+                              key={ex.id}
+                              agent={ex.agent as AgentRole}
+                              content={ex.content}
+                              exchangeNumber={ex.exchange_number}
+                              exchangeId={ex.id}
+                              skipped={ex.skipped}
+                              index={i}
+                            />
+                          ))}
                         </div>
                       )}
                     </div>

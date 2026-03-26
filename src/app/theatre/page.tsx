@@ -279,7 +279,7 @@ export default function TheatrePage() {
       {/* Exchange list */}
       <main className="mx-auto w-full max-w-2xl flex-1 py-4">
         <div className="space-y-1">
-          {visibleExchanges.map((exchange) => (
+          {visibleExchanges.map((exchange, i) => (
             <ExchangeBubble
               key={exchange.id}
               agent={exchange.agent as AgentRole}
@@ -288,6 +288,7 @@ export default function TheatrePage() {
               exchangeId={exchange.id}
               isNew={newExchangeIds.has(exchange.id)}
               skipped={exchange.skipped}
+              index={i}
             />
           ))}
         </div>

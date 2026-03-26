@@ -76,3 +76,19 @@ body {
 .pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Chat bubble slide-in animations */
+@keyframes fadeSlideLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeSlideRight {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.bubble-slide-left {
+  animation: fadeSlideLeft 0.3s ease both;
+}
+.bubble-slide-right {
+  animation: fadeSlideRight 0.3s ease both;
+}
