@@ -23,13 +23,13 @@ export function SessionHeader({ status, iteration, stats }: SessionHeaderProps) 
           <div className="flex items-center gap-4 sm:gap-5 sm:mt-7">
             <Link
               href="/observatory"
-              className="text-[10px] uppercase tracking-widest text-white/50 hover:text-white/90 transition-colors"
+              className="text-[10px] sm:text-xs uppercase tracking-widest text-white/50 hover:text-white/90 transition-colors"
             >
               Observatory
             </Link>
             <Link
               href="/about"
-              className="text-[10px] uppercase tracking-widest text-white/50 hover:text-white/90 transition-colors"
+              className="text-[10px] sm:text-xs uppercase tracking-widest text-white/50 hover:text-white/90 transition-colors"
             >
               About
             </Link>
