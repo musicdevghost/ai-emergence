@@ -18,14 +18,10 @@ export function GroundRef({ number, content, label }: GroundRefProps) {
   const wrapperRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
 
-  // If no matching hinge, render plain text
-  if (!content) {
-    return <span>{label}</span>;
-  }
-
   // Adjust tooltip position to avoid viewport overflow
+  // NOTE: must be before any early return — hooks cannot be conditional
   useEffect(() => {
-    if (!hovered || !wrapperRef.current || !tooltipRef.current) return;
+    if (!content || !hovered || !wrapperRef.current || !tooltipRef.current) return;
     const wRect = wrapperRef.current.getBoundingClientRect();
     const tRect = tooltipRef.current.getBoundingClientRect();
     const vw = window.innerWidth;
@@ -44,7 +40,12 @@ export function GroundRef({ number, content, label }: GroundRefProps) {
     }
 
     setTooltipStyle({ left, transform });
-  }, [hovered]);
+  }, [hovered, content]);
+
+  // If no matching hinge, render plain text — AFTER all hooks
+  if (!content) {
+    return <span>{label}</span>;
+  }
 
   return (
     <span
