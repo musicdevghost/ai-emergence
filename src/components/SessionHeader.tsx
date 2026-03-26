@@ -20,7 +20,7 @@ export function SessionHeader({ status, iteration, stats }: SessionHeaderProps) 
           >
             Emergence
           </Link>
-          <div className="flex items-center gap-4 sm:gap-5 sm:mt-4">
+          <div className="flex items-center gap-4 sm:gap-5 sm:mt-7">
             <Link
               href="/observatory"
               className="text-[10px] uppercase tracking-widest text-white/50 hover:text-white/90 transition-colors"
