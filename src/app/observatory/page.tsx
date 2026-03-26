@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { AGENTS, type AgentRole } from "@/lib/agents";
 import { ExchangeBubble, renderContent } from "@/components/ExchangeBubble";
 import Link from "next/link";
@@ -75,6 +75,8 @@ export default function ObservatoryPage() {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [sessionExchanges, setSessionExchanges] = useState<Record<string, Exchange[]>>({});
   const [iterationFilter, setIterationFilter] = useState<string>("all");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<"chain" | "record">("chain");
 
   const fetchStats = useCallback(async (p: number, iteration: string) => {
@@ -109,6 +111,17 @@ export default function ObservatoryPage() {
     await fetchStats(1, iteration);
     setLoadingPage(false);
   }, [fetchStats]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const toggleSession = useCallback(async (sessionId: string) => {
     if (expandedSession === sessionId) {
@@ -241,34 +254,54 @@ export default function ObservatoryPage() {
             )}
           </div>
 
-          {/* Iteration filter pills */}
-          {stats.iterations.length > 0 && (
-            <div className="flex items-center gap-2 mb-4 flex-wrap">
-              <button
-                onClick={() => changeIteration("all")}
-                className={`rounded-full px-3 py-1 text-[10px] uppercase tracking-wider border transition-colors ${
-                  iterationFilter === "all"
-                    ? "border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10"
-                    : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]"
-                }`}
-              >
-                All
-              </button>
-              {stats.iterations.map((iter) => (
+          {/* Iteration filter dropdown */}
+          {stats.iterations.length > 0 && (() => {
+            const activeIter = stats.iterations.find((i) => String(i.id) === iterationFilter);
+            const label = activeIter
+              ? `${toRoman(activeIter.number)} — ${activeIter.name}`
+              : "All iterations";
+            return (
+              <div ref={dropdownRef} className="relative mb-4 inline-block">
                 <button
-                  key={iter.id}
-                  onClick={() => changeIteration(String(iter.id))}
-                  className={`rounded-full px-3 py-1 text-[10px] uppercase tracking-wider border transition-colors ${
-                    iterationFilter === String(iter.id)
-                      ? getIterationColor(iter.number)
-                      : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]"
-                  }`}
+                  onClick={() => setDropdownOpen((v) => !v)}
+                  className="flex items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
                 >
-                  {iter.name}
+                  <span>{label}</span>
+                  <svg className={`h-3 w-3 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
-              ))}
-            </div>
-          )}
+                {dropdownOpen && (
+                  <div className="absolute left-0 top-full z-20 mt-1 min-w-[220px] rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] shadow-xl overflow-hidden">
+                    <button
+                      onClick={() => { changeIteration("all"); setDropdownOpen(false); }}
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                        iterationFilter === "all"
+                          ? "text-[var(--color-accent)] bg-[var(--color-accent)]/10"
+                          : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
+                      }`}
+                    >
+                      All iterations
+                    </button>
+                    {[...stats.iterations].reverse().map((iter) => (
+                      <button
+                        key={iter.id}
+                        onClick={() => { changeIteration(String(iter.id)); setDropdownOpen(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                          iterationFilter === String(iter.id)
+                            ? "text-[var(--color-accent)] bg-[var(--color-accent)]/10"
+                            : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
+                        }`}
+                      >
+                        <span className="font-mono mr-1.5 text-[10px] opacity-60">{toRoman(iter.number)}</span>
+                        {iter.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div className={`space-y-3 ${loadingPage ? "opacity-50" : ""}`}>
             {stats.recentSessions.map((s, i) => {
