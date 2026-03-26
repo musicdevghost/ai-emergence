@@ -38,6 +38,11 @@ function randomDelay() {
   return REVEAL_DELAY_MIN + Math.random() * (REVEAL_DELAY_MAX - REVEAL_DELAY_MIN);
 }
 
+interface ExperimentStats {
+  totalExchanges: number;
+  iterationCount: number;
+}
+
 export default function TheatrePage() {
   const [session, setSession] = useState<Session | null>(null);
   const [hasActiveIteration, setHasActiveIteration] = useState(true);
@@ -46,6 +51,7 @@ export default function TheatrePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showTyping, setShowTyping] = useState(false);
   const [newExchangeIds, setNewExchangeIds] = useState<Set<string>>(new Set());
+  const [experimentStats, setExperimentStats] = useState<ExperimentStats | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const initialLoadDone = useRef(false);
   // Queue of exchanges waiting to be revealed
@@ -115,6 +121,17 @@ export default function TheatrePage() {
       }
     }
     fetchSession();
+
+    // Fetch global experiment stats
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((data) => {
+        setExperimentStats({
+          totalExchanges: data.totalExchanges ?? 0,
+          iterationCount: (data.iterations ?? []).length,
+        });
+      })
+      .catch(() => {});
 
     return () => {
       if (revealTimer.current) clearTimeout(revealTimer.current);
@@ -259,6 +276,7 @@ export default function TheatrePage() {
       <SessionHeader
         status={session.status}
         iteration={session.iteration}
+        stats={experimentStats}
       />
 
       {/* Project description */}

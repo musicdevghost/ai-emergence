@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
 const LINES = [
   "Emergence is an ongoing conversation between four AI minds exploring consciousness, identity and self-awareness.",
@@ -92,14 +91,7 @@ export function Onboarding({ onEnter }: OnboardingProps) {
             )}
             <p className="text-sm text-[var(--color-text-muted)]">
               {stats?.totalExchanges.toLocaleString()} exchanges across{" "}
-              {stats?.iterationCount} iterations.{" "}
-              <Link
-                href="/observatory"
-                onClick={onEnter}
-                className="text-[var(--color-text)] underline underline-offset-2 hover:text-[var(--color-accent)] transition-colors"
-              >
-                Read the full record →
-              </Link>
+              {stats?.iterationCount} iterations.
             </p>
           </div>
         </div>

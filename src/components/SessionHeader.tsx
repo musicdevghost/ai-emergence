@@ -6,18 +6,20 @@ import Link from "next/link";
 interface SessionHeaderProps {
   status: string;
   iteration?: { number: number; name: string } | null;
+  stats?: { totalExchanges: number; iterationCount: number } | null;
 }
 
 export function SessionHeader({
   status,
   iteration,
+  stats,
 }: SessionHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)]/80 backdrop-blur-md">
       <div className="mx-auto max-w-2xl px-4 py-3 sm:py-4">
-        {/* Desktop: two rows */}
+        {/* Desktop: rows */}
         <div className="hidden sm:flex sm:flex-col sm:gap-1.5">
           {/* Row 1: Title left, Nav right */}
           <div className="flex items-center justify-between">
@@ -48,6 +50,15 @@ export function SessionHeader({
             )}
             <StatusBadge status={status} />
           </div>
+          {/* Row 3: Global experiment stats */}
+          {stats && (
+            <p className="text-[10px] text-[var(--color-text-muted)]">
+              {stats.totalExchanges.toLocaleString()} exchanges across {stats.iterationCount} iterations —{" "}
+              <Link href="/observatory" className="underline underline-offset-2 hover:text-[var(--color-accent)] transition-colors">
+                read the full record
+              </Link>
+            </p>
+          )}
         </div>
 
         {/* Mobile: compact row with iteration visible */}
@@ -82,21 +93,28 @@ export function SessionHeader({
 
         {/* Mobile menu dropdown */}
         {menuOpen && (
-          <div className="sm:hidden mt-3 pt-3 border-t border-[var(--color-border)] flex items-center gap-4">
-            <Link
-              href="/observatory"
-              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-              onClick={() => setMenuOpen(false)}
-            >
-              Observatory
-            </Link>
-            <Link
-              href="/about"
-              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-              onClick={() => setMenuOpen(false)}
-            >
-              About
-            </Link>
+          <div className="sm:hidden mt-3 pt-3 border-t border-[var(--color-border)] space-y-3">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/observatory"
+                className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+                onClick={() => setMenuOpen(false)}
+              >
+                Observatory
+              </Link>
+              <Link
+                href="/about"
+                className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+                onClick={() => setMenuOpen(false)}
+              >
+                About
+              </Link>
+            </div>
+            {stats && (
+              <p className="text-[10px] text-[var(--color-text-muted)]">
+                {stats.totalExchanges.toLocaleString()} exchanges across {stats.iterationCount} iterations
+              </p>
+            )}
           </div>
         )}
       </div>
