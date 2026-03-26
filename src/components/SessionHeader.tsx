@@ -20,16 +20,16 @@ export function SessionHeader({ status, iteration, stats }: SessionHeaderProps) 
           >
             Emergence
           </Link>
-          <div className="flex items-center gap-4 sm:gap-5">
+          <div className="flex items-center gap-4 sm:gap-5 sm:mt-4">
             <Link
               href="/observatory"
-              className="text-xs sm:text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+              className="text-[10px] uppercase tracking-widest text-white/50 hover:text-white/90 transition-colors"
             >
               Observatory
             </Link>
             <Link
               href="/about"
-              className="text-xs sm:text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+              className="text-[10px] uppercase tracking-widest text-white/50 hover:text-white/90 transition-colors"
             >
               About
             </Link>
