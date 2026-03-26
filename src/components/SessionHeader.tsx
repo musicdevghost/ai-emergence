@@ -37,7 +37,7 @@ export function SessionHeader({ status, iteration, stats }: SessionHeaderProps) 
         </div>
 
         {/* Row 2: Iteration + status */}
-        <div className="flex items-center gap-2 mt-2 sm:mt-1">
+        <div className="flex items-center gap-2 mt-4 sm:mt-1">
           {iteration && (
             <span className="text-xs sm:text-sm text-[var(--color-text-muted)]">
               Iteration {toRoman(iteration.number)} — {iteration.name}
