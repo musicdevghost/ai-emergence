@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 const RANGE_DAYS: Record<string, number> = {
   "1d": 0,    // start of today
   "7d": 6,    // 6 days back + today = 7 days

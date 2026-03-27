@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 function getCutoff(range: string): string {
   if (range === "all") return new Date("2020-01-01").toISOString();
   const days = parseInt(range) || 7;
