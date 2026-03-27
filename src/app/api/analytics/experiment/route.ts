@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       ORDER BY i.number
     `, []),
 
-    // Per-agent pass rate, current iteration
+    // Per-agent pass rate, current iteration, within range
     safeQuery(() => sql`
       SELECT
         e.agent,
@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
       WHERE s.iteration_id = (
         SELECT id FROM iterations WHERE ended_at IS NULL ORDER BY number DESC LIMIT 1
       )
+        AND s.created_at > ${cutoff}
       GROUP BY e.agent
       ORDER BY e.agent
     `, []),
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
       return parseInt(rows[0]?.count ?? "0");
     }, 0),
 
-    // Avg exchanges per session (current iteration)
+    // Avg exchanges per session (current iteration, within range)
     safeQuery(async () => {
       const rows = await sql`
         SELECT ROUND(AVG(exchange_count), 1) as avg
@@ -112,6 +113,7 @@ export async function GET(request: NextRequest) {
           AND iteration_id = (
             SELECT id FROM iterations WHERE ended_at IS NULL ORDER BY number DESC LIMIT 1
           )
+          AND created_at > ${cutoff}
       `;
       return rows[0]?.avg ?? null;
     }, null),
@@ -168,7 +170,7 @@ export async function GET(request: NextRequest) {
       ORDER BY week
     `, []),
 
-    // Return visitors (viewed on >1 distinct day)
+    // Return visitors within range (viewed on >1 distinct day)
     safeQuery(async () => {
       const rows = await sql`
         SELECT COUNT(DISTINCT persistent_viewer_id) as count
@@ -176,6 +178,7 @@ export async function GET(request: NextRequest) {
           SELECT persistent_viewer_id
           FROM page_views
           WHERE persistent_viewer_id IS NOT NULL
+            AND created_at > ${cutoff}
           GROUP BY persistent_viewer_id
           HAVING COUNT(DISTINCT DATE(created_at)) > 1
         ) returning_visitors
@@ -183,7 +186,7 @@ export async function GET(request: NextRequest) {
       return parseInt(rows[0]?.count ?? "0");
     }, null),
 
-    // Avg time on page by path (from heartbeat_log)
+    // Avg time on page by path within range (from heartbeat_log)
     safeQuery(() => sql`
       SELECT
         path,
@@ -191,6 +194,7 @@ export async function GET(request: NextRequest) {
       FROM (
         SELECT viewer_id, path, COUNT(*) as heartbeat_count
         FROM heartbeat_log
+        WHERE created_at > ${cutoff}
         GROUP BY viewer_id, path
       ) per_visit
       GROUP BY path
