@@ -9,7 +9,8 @@ export async function POST(request: NextRequest) {
     }
 
     const country = request.headers.get("x-vercel-ip-country") || null;
-    const city = request.headers.get("x-vercel-ip-city") || null;
+    const rawCity = request.headers.get("x-vercel-ip-city") || null;
+    const city = rawCity ? decodeURIComponent(rawCity) : null;
     const region = request.headers.get("x-vercel-ip-region") || null;
 
     const sql = getDb();

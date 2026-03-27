@@ -900,7 +900,7 @@ export default function AdminPanel() {
                           <div className="space-y-1.5">
                             {experimentData.geoCities.slice(0, 10).map((c, i) => (
                               <div key={i} className="flex items-center justify-between">
-                                <span className="text-[10px] text-[var(--color-text)]">{c.city}</span>
+                                <span className="text-[10px] text-[var(--color-text)]">{decodeURIComponent(c.city)}</span>
                                 <span className="text-[9px] text-[var(--color-text-muted)]">{c.country} · {c.views}</span>
                               </div>
                             ))}
