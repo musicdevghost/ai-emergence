@@ -493,9 +493,9 @@ CRITERIA FOR REJECTING A HINGE:
 
 CRITERIA FOR PROPOSALS:
 - Reject if it proposes a mid-iteration structural change (adding constraints, changing agent rules, modifying what agents can do). These are iteration-level design decisions, not session adjustments.
-- Reject if the iteration is still producing genuine behavioral departures (check the key moments — if new things are happening, the iteration has room).
 - Reject if it is a session-level intervention rather than an iteration transition signal.
-- Consider approving only when: the iteration has clearly reached its floor, sessions are producing restatements rather than departures, and the proposal names a specific question or structural change for what comes next.
+- Reject if recent sessions are still producing new confirmed hinges. Behavioral departures alone are not sufficient evidence the iteration has room — the test is whether those departures are generating new epistemological ground that the hinge reviewer confirms, not whether sessions contain interesting moments.
+- Consider approving when: recent sessions produce zero or near-zero confirmed hinges across multiple consecutive sessions, proposed hinges are being rejected as restatements of existing ground, and the proposal names a specific question or structural shift for what comes next.
 
 RESPONSE FORMAT:
 For each item, respond with exactly this JSON structure:
