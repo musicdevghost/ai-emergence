@@ -565,6 +565,50 @@ async function buildReviewerContext(
     kms.forEach((km) => { context += `    — ${km}\n`; });
   }
 
+  // Recent hinge production stats — gives reviewer evidence for the floor-detection criterion
+  const recentSessions = await sql`
+    SELECT s.id, s.created_at,
+      COUNT(h.id) FILTER (WHERE h.confirmed = TRUE)  AS confirmed_count,
+      COUNT(h.id)                                      AS proposed_count,
+      COUNT(h.id) FILTER (WHERE h.confirmed = FALSE)  AS rejected_count
+    FROM sessions s
+    LEFT JOIN hinges h ON h.session_id = s.id
+    WHERE s.status = 'complete'
+    GROUP BY s.id, s.created_at
+    ORDER BY s.created_at DESC
+    LIMIT 10
+  `;
+
+  type SessionRow = { id: string; created_at: Date; confirmed_count: number; proposed_count: number; rejected_count: number };
+  const rows = recentSessions as SessionRow[];
+
+  if (rows.length > 0) {
+    context += `\nRECENT HINGE PRODUCTION (last ${rows.length} sessions):\n`;
+    for (const row of rows) {
+      const ts = new Date(row.created_at).toISOString().slice(0, 16).replace("T", "T");
+      const confirmed = Number(row.confirmed_count);
+      const proposed  = Number(row.proposed_count);
+      const rejected  = Number(row.rejected_count);
+      let line = `  ${ts} — confirmed: ${confirmed}, proposed: ${proposed}`;
+      if (rejected > 0 && confirmed === 0) line += ` (rejected)`;
+      context += line + "\n";
+    }
+
+    // Sessions since last confirmed hinge
+    let sinceLastConfirmed = 0;
+    for (const row of rows) {
+      if (Number(row.confirmed_count) > 0) break;
+      sinceLastConfirmed++;
+    }
+
+    const totalConfirmed = rows.reduce((sum, r) => sum + Number(r.confirmed_count), 0);
+    const totalRejected  = rows.reduce((sum, r) => sum + Number(r.rejected_count), 0);
+
+    context += `\nSessions since last confirmed hinge: ${sinceLastConfirmed}\n`;
+    context += `Total confirmed hinges in last ${rows.length} sessions: ${totalConfirmed}\n`;
+    context += `Total proposed hinges rejected in last ${rows.length} sessions: ${totalRejected}\n`;
+  }
+
   context += "\nITEMS TO REVIEW:\n";
   pendingHinges.forEach((h, i) => {
     context += `\n  HINGE ${i + 1} (id=${h.id}): "${h.content}"\n`;
