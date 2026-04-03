@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { isAdmin } from "@/lib/auth";
+import { triggerIterationTransition } from "@/lib/iteration-transition";
 
 export async function GET(request: NextRequest) {
   if (!isAdmin(request)) {
@@ -70,6 +71,10 @@ export async function PATCH(request: NextRequest) {
       await sql`UPDATE proposals SET status = ${status}, admin_note = ${admin_note.trim()}, reviewed_at = NOW() WHERE id = ${id}`;
     } else if (status === "approved") {
       await sql`UPDATE proposals SET status = ${status}, reviewed_at = NOW() WHERE id = ${id}`;
+      // Trigger iteration transition — fire-and-forget, errors logged not thrown
+      triggerIterationTransition(id).catch((err) => {
+        console.error(`[admin] Iteration transition failed for proposal id=${id}:`, err);
+      });
     } else {
       await sql`UPDATE proposals SET status = ${status} WHERE id = ${id}`;
     }

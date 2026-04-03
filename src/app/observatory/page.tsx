@@ -55,18 +55,22 @@ interface Exchange {
   created_at: string;
 }
 
-const ITERATION_COLORS: Record<number, string> = {
-  1: "text-amber-400 border-amber-400/30 bg-amber-400/10",
-  2: "text-blue-400 border-blue-400/30 bg-blue-400/10",
-  3: "text-purple-400 border-purple-400/30 bg-purple-400/10",
-  4: "text-red-400 border-red-400/30 bg-red-400/10",
-  5: "text-green-400 border-green-400/30 bg-green-400/10",
-  6: "text-cyan-400 border-cyan-400/30 bg-cyan-400/10",
-  7: "text-rose-400 border-rose-400/30 bg-rose-400/10",
-};
+// Color cycle — extends to any iteration number via modulo
+const ITERATION_COLOR_CYCLE = [
+  "text-amber-400 border-amber-400/30 bg-amber-400/10",
+  "text-blue-400 border-blue-400/30 bg-blue-400/10",
+  "text-purple-400 border-purple-400/30 bg-purple-400/10",
+  "text-red-400 border-red-400/30 bg-red-400/10",
+  "text-green-400 border-green-400/30 bg-green-400/10",
+  "text-cyan-400 border-cyan-400/30 bg-cyan-400/10",
+  "text-rose-400 border-rose-400/30 bg-rose-400/10",
+  "text-orange-400 border-orange-400/30 bg-orange-400/10",
+  "text-teal-400 border-teal-400/30 bg-teal-400/10",
+  "text-indigo-400 border-indigo-400/30 bg-indigo-400/10",
+];
 
 function getIterationColor(num: number): string {
-  return ITERATION_COLORS[num] || "text-[var(--color-text-muted)] border-[var(--color-border)] bg-[var(--color-surface)]";
+  return ITERATION_COLOR_CYCLE[(num - 1) % ITERATION_COLOR_CYCLE.length];
 }
 
 export default function ObservatoryPage() {

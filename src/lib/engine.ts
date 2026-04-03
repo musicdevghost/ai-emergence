@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getDb } from "./db";
 import { notifyNewSession } from "./email";
+import { triggerIterationTransition } from "./iteration-transition";
 import {
   AGENTS,
   CONTEXT_WINDOW_SIZE,
@@ -766,6 +767,10 @@ async function reviewPendingSignals(sessionId: string) {
                 reviewer_reason    = ${review.reason}
             WHERE id = ${review.id}
           `;
+          // Trigger iteration transition — non-blocking, errors are logged not thrown
+          triggerIterationTransition(review.id).catch((err) => {
+            console.error(`[reviewer] Iteration transition failed for proposal id=${review.id}:`, err);
+          });
         } else if (review.decision === "reject") {
           await sql`
             UPDATE proposals

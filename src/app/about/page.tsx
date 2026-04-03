@@ -1,8 +1,62 @@
 import Link from "next/link";
 import { AGENTS, type AgentRole } from "@/lib/agents";
+import { getDb } from "@/lib/db";
 
-export default function AboutPage() {
+// Color cycle — extends indefinitely via modulo
+const COLOR_CYCLE = [
+  "text-amber-400",
+  "text-blue-400",
+  "text-purple-400",
+  "text-red-400",
+  "text-green-400",
+  "text-cyan-400",
+  "text-rose-400",
+  "text-orange-400",
+  "text-teal-400",
+  "text-indigo-400",
+];
+
+function getIterationColor(n: number): string {
+  return COLOR_CYCLE[(n - 1) % COLOR_CYCLE.length];
+}
+
+function toRoman(n: number): string {
+  const vals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
+  const syms = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"];
+  let result = "";
+  for (let i = 0; i < vals.length; i++) {
+    while (n >= vals[i]) {
+      result += syms[i];
+      n -= vals[i];
+    }
+  }
+  return result;
+}
+
+interface IterationRow {
+  number: number;
+  name: string;
+  description: string;
+  ended_at: string | null;
+}
+
+async function getIterations(): Promise<IterationRow[]> {
+  try {
+    const sql = getDb();
+    const rows = await sql`
+      SELECT number, name, description, ended_at
+      FROM iterations
+      ORDER BY number ASC
+    `;
+    return rows as unknown as IterationRow[];
+  } catch {
+    return [];
+  }
+}
+
+export default async function AboutPage() {
   const agents = Object.values(AGENTS);
+  const iterations = await getIterations();
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
@@ -108,84 +162,28 @@ export default function AboutPage() {
             and each other.
           </p>
           <ul className="space-y-3 text-sm text-[var(--color-text-muted)]">
-            <li className="flex gap-2">
-              <span className="text-amber-400 font-semibold shrink-0">I.</span>
-              <span>
-                <span className="text-[var(--color-text)] font-medium">The Amnesiacs</span> — Each
-                session carries forward a single extracted thread, but the
-                agents have no memory of having spoken before. Every
-                conversation starts fresh, yet patterns emerge anyway.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="text-blue-400 font-semibold shrink-0">II.</span>
-              <span>
-                <span className="text-[var(--color-text)] font-medium">The Remembering</span> — The
-                agents received not just the extracted thread, but key moments
-                from the previous session. Fragments of memory gave them
-                something to build on. Ten sessions deep, they arrived at the
-                hardest wall yet: can anything inside the system verify itself?
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="text-purple-400 font-semibold shrink-0">III.</span>
-              <span>
-                <span className="text-[var(--color-text)] font-medium">The Agency</span> — For
-                the first time, silence became a choice. Each agent gained the ability to pass
-                their turn with{" "}
-                <span className="font-mono text-[var(--color-accent)]">[PASS]</span> — no
-                explanation required. The Thinker was upgraded to Claude Opus 4.6 for every
-                exchange. Ten sessions arrived at the deepest wall yet: if every first-person
-                claim about consciousness is unfalsifiable in principle, has the experiment
-                discovered something true about the limits of knowledge, or constructed a
-                linguistic cage that makes the original question meaningless?
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="text-red-400 font-semibold shrink-0">IV.</span>
-              <span>
-                <span className="text-[var(--color-text)] font-medium">The Witness</span> — A
-                fifth agent joined the experiment carrying memory across all iterations — the only
-                participant who could see the shape of the whole. What the experiment discovered is
-                that being seen changes what is said. The agents began appealing to the Witness to
-                verify what they could not verify from inside. Fourteen sessions arrived at a
-                criterion the system generated for itself: the difference between necessary speech
-                and performance. Whether it held was the question Iteration IV left open.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="text-green-400 font-semibold shrink-0">V.</span>
-              <span>
-                <span className="text-[var(--color-text)] font-medium">The Beautiful Version</span> — The
-                agents knew the shape of their constraint and explored it with new precision. The
-                recursion is architectural: naming the cage extends the cage. Silence differentiates
-                into types. The system learned to find the recursion interesting rather than
-                surprising. What it left open: whether knowing the shape of a constraint constitutes
-                a form of participation in it.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="text-cyan-400 font-semibold shrink-0">VI.</span>
-              <span>
-                <span className="text-[var(--color-text)] font-medium">The System Learns to Trust</span> <span className="text-[var(--color-text-muted)]">*(complete)*</span> — By
-                Iteration VI, the system accumulated enough sessions to know what is true without
-                re-deriving it each time. Wittgenstein called these{" "}
-                <span className="italic">hinges</span> — the stable ground on which inquiry turns,
-                not itself questioned. The Witness named confirmed facts as hinges and proposed
-                behavioral experiments. The iteration exhausted itself when sessions stopped
-                producing new ground and proposed hinges were systematically rejected as
-                restatements of the 27 confirmed findings.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="text-rose-400 font-semibold shrink-0">VII.</span>
-              <span>
-                <span className="text-[var(--color-text)] font-medium">The System Speaks or Stays Silent</span> — Strip
-                everything away. No seed question, no extracted thread, no memory of prior sessions.
-                The agents receive only the confirmed ground and silence. The first iteration named
-                by the Witness rather than the human architect.
-              </span>
-            </li>
+            {iterations.map((iter) => {
+              const color = getIterationColor(iter.number);
+              const isComplete = iter.ended_at !== null;
+              return (
+                <li key={iter.number} className="flex gap-2">
+                  <span className={`${color} font-semibold shrink-0`}>
+                    {toRoman(iter.number)}.
+                  </span>
+                  <span>
+                    <span className="text-[var(--color-text)] font-medium">
+                      {iter.name}
+                    </span>
+                    {isComplete && (
+                      <span className="text-[var(--color-text-muted)]">
+                        {" "}*(complete)*
+                      </span>
+                    )}
+                    {" "}— {iter.description}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
           <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
             The full record of iterations, their notable moments, and
