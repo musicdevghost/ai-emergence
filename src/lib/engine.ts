@@ -562,7 +562,7 @@ async function buildReviewerContext(
     ORDER BY created_at DESC LIMIT 5
   `;
   const session = await sql`
-    SELECT extracted_thread, key_moments FROM sessions WHERE id = ${sessionId}
+    SELECT extracted_thread, key_moments, iteration_id FROM sessions WHERE id = ${sessionId}
   `;
 
   let context = "CONFIRMED GROUND (currently active hinges):\n";
@@ -585,6 +585,8 @@ async function buildReviewerContext(
   }
 
   const sess = (session as any[])[0];
+  const iterationId = sess?.iteration_id ?? null;
+
   context += `\nSESSION CONTEXT:\n`;
   context += `  Thread: ${sess?.extracted_thread || "none"}\n`;
   const kms: string[] = sess?.key_moments || [];
@@ -593,27 +595,40 @@ async function buildReviewerContext(
     kms.forEach((km) => { context += `    — ${km}\n`; });
   }
 
-  // Recent hinge production stats — gives reviewer evidence for the floor-detection criterion
-  const recentSessions = await sql`
-    SELECT s.id, s.created_at,
-      COUNT(h.id) FILTER (WHERE h.confirmed = TRUE)  AS confirmed_count,
-      COUNT(h.id)                                      AS proposed_count,
-      COUNT(h.id) FILTER (WHERE h.confirmed = FALSE)  AS rejected_count
-    FROM sessions s
-    LEFT JOIN hinges h ON h.session_id = s.id
-    WHERE s.status = 'complete'
-    GROUP BY s.id, s.created_at
-    ORDER BY s.created_at DESC
-    LIMIT 10
-  `;
-
+  // Recent hinge production stats — scoped to current iteration so drought/floor signals are meaningful
   type SessionRow = { id: string; created_at: Date; confirmed_count: number; proposed_count: number; rejected_count: number };
-  const rows = recentSessions as SessionRow[];
+
+  let rows: SessionRow[] = [];
+  let iterationTotalSessions = 0;
+
+  if (iterationId != null) {
+    // Total sessions in this iteration (including in-progress current session)
+    const totalRows = await sql`
+      SELECT COUNT(*) AS count FROM sessions WHERE iteration_id = ${iterationId}
+    `;
+    iterationTotalSessions = parseInt((totalRows as any[])[0]?.count ?? "0", 10);
+
+    const recentSessions = await sql`
+      SELECT s.id, s.created_at,
+        COUNT(h.id) FILTER (WHERE h.confirmed = TRUE)  AS confirmed_count,
+        COUNT(h.id)                                      AS proposed_count,
+        COUNT(h.id) FILTER (WHERE h.confirmed = FALSE)  AS rejected_count
+      FROM sessions s
+      LEFT JOIN hinges h ON h.session_id = s.id
+      WHERE s.status = 'complete'
+        AND s.iteration_id = ${iterationId}
+      GROUP BY s.id, s.created_at
+      ORDER BY s.created_at DESC
+      LIMIT 10
+    `;
+    rows = recentSessions as SessionRow[];
+  }
+
+  context += `\nRECENT HINGE PRODUCTION (current iteration, ${iterationTotalSessions} session${iterationTotalSessions === 1 ? "" : "s"} total):\n`;
 
   if (rows.length > 0) {
-    context += `\nRECENT HINGE PRODUCTION (last ${rows.length} sessions):\n`;
     for (const row of rows) {
-      const ts = new Date(row.created_at).toISOString().slice(0, 16).replace("T", "T");
+      const ts = new Date(row.created_at).toISOString().slice(0, 16);
       const confirmed = Number(row.confirmed_count);
       const proposed  = Number(row.proposed_count);
       const rejected  = Number(row.rejected_count);
@@ -622,7 +637,7 @@ async function buildReviewerContext(
       context += line + "\n";
     }
 
-    // Sessions since last confirmed hinge
+    // Sessions since last confirmed hinge (within this iteration only)
     let sinceLastConfirmed = 0;
     for (const row of rows) {
       if (Number(row.confirmed_count) > 0) break;
@@ -632,9 +647,14 @@ async function buildReviewerContext(
     const totalConfirmed = rows.reduce((sum, r) => sum + Number(r.confirmed_count), 0);
     const totalRejected  = rows.reduce((sum, r) => sum + Number(r.rejected_count), 0);
 
-    context += `\nSessions since last confirmed hinge: ${sinceLastConfirmed}\n`;
-    context += `Total confirmed hinges in last ${rows.length} sessions: ${totalConfirmed}\n`;
-    context += `Total proposed hinges rejected in last ${rows.length} sessions: ${totalRejected}\n`;
+    context += `\nSessions since last confirmed hinge (this iteration): ${sinceLastConfirmed}\n`;
+    context += `Total confirmed hinges this iteration: ${totalConfirmed}\n`;
+    context += `Total proposed hinges rejected as restatements this iteration: ${totalRejected}\n`;
+  } else {
+    context += `  (no completed sessions yet in this iteration)\n`;
+    context += `\nSessions since last confirmed hinge (this iteration): 0\n`;
+    context += `Total confirmed hinges this iteration: 0\n`;
+    context += `Total proposed hinges rejected as restatements this iteration: 0\n`;
   }
 
   context += "\nITEMS TO REVIEW:\n";
