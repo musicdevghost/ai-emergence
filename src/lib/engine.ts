@@ -93,11 +93,17 @@ export async function getActiveSession(opts: { silent?: boolean } = {}): Promise
 async function createSession(seedThread: string | null, silent = false): Promise<SessionRow> {
   const sql = getDb();
 
-  // Get current active iteration
+  // Get current active iteration (also fetch seed_mode for silence-mode support)
   const iterations = await sql`
-    SELECT id FROM iterations WHERE ended_at IS NULL ORDER BY number DESC LIMIT 1
+    SELECT id, seed_mode FROM iterations WHERE ended_at IS NULL ORDER BY number DESC LIMIT 1
   `;
   const iterationId = iterations.length > 0 ? (iterations[0].id as number) : null;
+  const iterationSeedMode = iterations.length > 0 ? (iterations[0].seed_mode as string | null) : null;
+
+  // Silent-mode iterations (e.g. VII) receive no seed thread regardless of what was extracted
+  if (iterationSeedMode === "silent") {
+    seedThread = null;
+  }
 
   // Get current config version
   const configVersions = await sql`
@@ -330,12 +336,22 @@ export async function runNextExchange(session: SessionRow) {
 
     messages.push({ role: "user", content: seedContent });
   } else if (isFirstExchange && !session.seed_thread) {
-    // Very first session ever
-    messages.push({
-      role: "user",
-      content:
-        "This is the very first session of Emergence. Open with: What should Emergence's first question be?",
-    });
+    // Only send the bootstrap prompt if this is truly the very first session ever.
+    // Silent-mode iterations (VII+) also have no seed_thread — they should receive
+    // only the system prompt and GROUND block, with no turn-0 user message.
+    const priorRows = await sql`
+      SELECT COUNT(*) AS count FROM sessions WHERE id != ${session.id}
+    `;
+    const priorCount = parseInt(priorRows[0].count as string, 10);
+    if (priorCount === 0) {
+      messages.push({
+        role: "user",
+        content:
+          "This is the very first session of Emergence. Open with: What should Emergence's first question be?",
+      });
+    }
+    // Otherwise: silent-mode iteration — no turn-0 message.
+    // Agents receive only their system prompt + GROUND block.
   }
 
   // Add conversation history as alternating user/assistant messages.
@@ -374,13 +390,25 @@ export async function runNextExchange(session: SessionRow) {
     });
   }
 
-  // If Witness, prepend the full experiment arc to the message array
+  // If Witness, prepend the full experiment arc — unless the active iteration
+  // is in silent mode, in which case the Witness receives only the GROUND block.
   if (role === "witness") {
-    const witnessBrief = await buildWitnessContext(session.id);
-    messages.unshift({
-      role: "user",
-      content: witnessBrief,
-    });
+    let suppressWitnessContext = false;
+    if (session.iteration_id) {
+      const iterRows = await sql`
+        SELECT seed_mode FROM iterations WHERE id = ${session.iteration_id}
+      `;
+      if (iterRows.length > 0 && (iterRows[0].seed_mode as string) === "silent") {
+        suppressWitnessContext = true;
+      }
+    }
+    if (!suppressWitnessContext) {
+      const witnessBrief = await buildWitnessContext(session.id);
+      messages.unshift({
+        role: "user",
+        content: witnessBrief,
+      });
+    }
   }
 
   // Call the API with retries

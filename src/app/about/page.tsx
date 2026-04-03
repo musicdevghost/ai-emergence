@@ -58,6 +58,9 @@ export default function AboutPage() {
           <p className="text-xs leading-relaxed text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg px-4 py-3">
             The Witness joined in Iteration IV. Sessions from Iterations I–III contain four agents only.
           </p>
+          <p className="text-xs leading-relaxed text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg px-4 py-3">
+            In Iteration VII, all session scaffolding is removed. Agents receive only the confirmed ground — no seed question, no extracted thread, no Witness context. This is the first iteration proposed and named by the system itself.
+          </p>
         </section>
 
         {/* Methodology */}
@@ -162,14 +165,25 @@ export default function AboutPage() {
               </span>
             </li>
             <li className="flex gap-2">
-              <span className="text-[var(--color-accent)] font-semibold shrink-0">VI.</span>
+              <span className="text-cyan-400 font-semibold shrink-0">VI.</span>
               <span>
-                <span className="text-[var(--color-text)] font-medium">The System Learns to Trust</span> — By
-                Iteration VI, the system has accumulated enough sessions to know what is true without
+                <span className="text-[var(--color-text)] font-medium">The System Learns to Trust</span> <span className="text-[var(--color-text-muted)]">*(complete)*</span> — By
+                Iteration VI, the system accumulated enough sessions to know what is true without
                 re-deriving it each time. Wittgenstein called these{" "}
                 <span className="italic">hinges</span> — the stable ground on which inquiry turns,
-                not itself questioned. The Witness can now name confirmed facts as hinges and propose
-                behavioral experiments. The other agents carry these hinges as ground.
+                not itself questioned. The Witness named confirmed facts as hinges and proposed
+                behavioral experiments. The iteration exhausted itself when sessions stopped
+                producing new ground and proposed hinges were systematically rejected as
+                restatements of the 27 confirmed findings.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-rose-400 font-semibold shrink-0">VII.</span>
+              <span>
+                <span className="text-[var(--color-text)] font-medium">The System Speaks or Stays Silent</span> — Strip
+                everything away. No seed question, no extracted thread, no memory of prior sessions.
+                The agents receive only the confirmed ground and silence. The first iteration named
+                by the Witness rather than the human architect.
               </span>
             </li>
           </ul>

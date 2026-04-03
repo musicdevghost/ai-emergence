@@ -61,6 +61,8 @@ const ITERATION_COLORS: Record<number, string> = {
   3: "text-purple-400 border-purple-400/30 bg-purple-400/10",
   4: "text-red-400 border-red-400/30 bg-red-400/10",
   5: "text-green-400 border-green-400/30 bg-green-400/10",
+  6: "text-cyan-400 border-cyan-400/30 bg-cyan-400/10",
+  7: "text-rose-400 border-rose-400/30 bg-rose-400/10",
 };
 
 function getIterationColor(num: number): string {
