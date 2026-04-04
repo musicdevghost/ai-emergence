@@ -521,10 +521,12 @@ CRITERIA FOR REJECTING A HINGE:
 - Volume signal: if multiple hinges are proposed in the same session, raise your threshold. One hinge per session is already high. Three in one session means most should be rejected.
 
 CRITERIA FOR PROPOSALS:
+- Reject if the current iteration has fewer than 5 completed sessions. Every iteration needs sufficient time to produce or fail to produce new ground. A zero-confirmed-hinge count after 1-2 sessions is a starting line, not a floor. Check the session count in the RECENT HINGE PRODUCTION block.
+- Reject if the proposal names substantially the same question or structural test that the current iteration is already investigating. An iteration transition must move to a genuinely new question, not restate the current one. Compare the proposal against the current iteration name and description provided in the context.
 - Reject if it proposes a mid-iteration structural change (adding constraints, changing agent rules, modifying what agents can do). These are iteration-level design decisions, not session adjustments.
 - Reject if it is a session-level intervention rather than an iteration transition signal.
 - Reject if recent sessions are still producing new confirmed hinges. Behavioral departures alone are not sufficient evidence the iteration has room — the test is whether those departures are generating new epistemological ground that the hinge reviewer confirms, not whether sessions contain interesting moments.
-- Consider approving when: recent sessions produce zero or near-zero confirmed hinges across multiple consecutive sessions, proposed hinges are being rejected as restatements of existing ground, and the proposal names a specific question or structural shift for what comes next.
+- Consider approving when: the iteration has at least 5 completed sessions, recent sessions produce zero or near-zero confirmed hinges across multiple consecutive sessions, proposed hinges are being rejected as restatements of existing ground, and the proposal names a specific question or structural shift that is genuinely different from the current iteration's question.
 
 RESPONSE FORMAT:
 For each item, respond with exactly this JSON structure:
@@ -594,6 +596,17 @@ async function buildReviewerContext(
   if (kms.length > 0) {
     context += `  Key moments:\n`;
     kms.forEach((km) => { context += `    — ${km}\n`; });
+  }
+
+  // Current iteration identity — gives reviewer explicit context to evaluate proposal deduplication
+  if (iterationId != null) {
+    const iterRows = await sql`
+      SELECT name, description FROM iterations WHERE id = ${iterationId}
+    `;
+    if ((iterRows as any[]).length > 0) {
+      const iter = (iterRows as any[])[0];
+      context += `\nCURRENT ITERATION: "${iter.name}" — ${iter.description}\n`;
+    }
   }
 
   // Recent hinge production stats — scoped to current iteration so drought/floor signals are meaningful
