@@ -526,7 +526,16 @@ CRITERIA FOR PROPOSALS:
 - Reject if it proposes a mid-iteration structural change (adding constraints, changing agent rules, modifying what agents can do). These are iteration-level design decisions, not session adjustments.
 - Reject if it is a session-level intervention rather than an iteration transition signal.
 - Reject if recent sessions are still producing new confirmed hinges. Behavioral departures alone are not sufficient evidence the iteration has room — the test is whether those departures are generating new epistemological ground that the hinge reviewer confirms, not whether sessions contain interesting moments.
-- Consider approving when: the iteration has at least 5 completed sessions, recent sessions produce zero or near-zero confirmed hinges across multiple consecutive sessions, proposed hinges are being rejected as restatements of existing ground, and the proposal names a specific question or structural shift that is genuinely different from the current iteration's question.
+
+APPROVAL IS THE CORRECT DECISION when all of the following hold:
+- The iteration has at least 5 completed sessions.
+- Recent sessions produce zero or near-zero confirmed hinges across multiple consecutive sessions.
+- Proposed hinges from recent sessions are being rejected as restatements of existing ground.
+- The proposal names a specific question or structural shift that is genuinely different from the current iteration's question.
+
+When all four approval conditions hold, approve. Do not require additional sessions. Do not defer on the grounds that the floor has not yet been reached — if the four conditions above are met, the floor has been reached. Requesting "2-3 more sessions" when the threshold is already met is not conservatism, it is refusal to decide.
+
+Saturation check: if the current iteration has run longer than twice the median length of previous iterations (by session count) AND has produced zero confirmed hinges across ten or more consecutive completed sessions, the iteration has saturated. In this state, approve the first proposal that names a structurally distinct question. Further rejection on grounds of insufficient evidence is incorrect — the evidence of saturation is itself the signal to transition.
 
 RESPONSE FORMAT:
 For each item, respond with exactly this JSON structure:
@@ -559,11 +568,6 @@ async function buildReviewerContext(
     WHERE confirmed = FALSE AND rejection_reason IS NOT NULL
     ORDER BY created_at DESC LIMIT 10
   `;
-  const rejectedProposals = await sql`
-    SELECT content, admin_note FROM proposals
-    WHERE status = 'rejected' AND admin_note IS NOT NULL
-    ORDER BY created_at DESC LIMIT 5
-  `;
   const session = await sql`
     SELECT extracted_thread, key_moments, iteration_id FROM sessions WHERE id = ${sessionId}
   `;
@@ -577,13 +581,6 @@ async function buildReviewerContext(
     context += "\nREJECTED HINGES (with reasons — learn from these patterns):\n";
     (rejectedHinges as { content: string; rejection_reason: string }[]).forEach((h) => {
       context += `  — "${h.content.substring(0, 120)}..." → Rejected: ${h.rejection_reason}\n`;
-    });
-  }
-
-  if ((rejectedProposals as any[]).length > 0) {
-    context += "\nREJECTED PROPOSALS (with reasons):\n";
-    (rejectedProposals as { content: string; admin_note: string }[]).forEach((p) => {
-      context += `  — "${p.content.substring(0, 120)}..." → Rejected: ${p.admin_note}\n`;
     });
   }
 
