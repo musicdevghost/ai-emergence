@@ -137,5 +137,5 @@ export function getModelForExchange(
 export const CONTEXT_WINDOW_SIZE = 10;
 
 /** Target exchanges per session */
-export const MIN_EXCHANGES = 15;
-export const MAX_EXCHANGES = 20;
+export const MIN_EXCHANGES = 1;
+export const MAX_EXCHANGES = 1;

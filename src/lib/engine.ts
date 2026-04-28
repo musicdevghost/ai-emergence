@@ -73,7 +73,7 @@ export async function getActiveSession(opts: { silent?: boolean } = {}): Promise
   } else if (!nextAt) {
     // Legacy: no stored time, calculate and store one
     const lastCompletedAt = new Date(lastCompleted[0].completed_at as string);
-    const gapHours = 3 + Math.random();
+    const gapHours = 24;
     const nextSessionAt = new Date(
       lastCompletedAt.getTime() + gapHours * 60 * 60 * 1000
     );
@@ -858,7 +858,7 @@ async function endSession(sessionId: string) {
   }
 
   // Calculate and store the next session start time (3-4 hour gap)
-  const gapHours = 3 + Math.random();
+  const gapHours = 24;
   const nextSessionAt = new Date(Date.now() + gapHours * 60 * 60 * 1000);
 
   await sql`
